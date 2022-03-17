@@ -1,6 +1,10 @@
 **/__pycache__
-runs
-data
-data_source
-pers
-cache_dir
+mmlearn/runs
+mmlearn/data
+mmlearn/data_source
+mmlearn/pers
+mmlearn/cache_dir
+setupx.cfg
+pyprojectx.toml
+build
+mmlearn.egg-info

@@ -11,8 +11,8 @@ import torchvision.models as models
 import pytorch_pretrained_vit
 from sentence_transformers import SentenceTransformer
 
-from data import MultimodalDataset
-from util import log_progress, DEVICE, USE_CUDA
+from mmlearn.data import MultimodalDataset
+from mmlearn.util import log_progress, DEVICE, USE_CUDA
 
 IMG_FE_BSIZE = 4
 

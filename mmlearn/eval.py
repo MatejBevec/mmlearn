@@ -9,10 +9,9 @@ from sklearn.metrics import accuracy_score
 import sklearn.metrics
 from sklearn.model_selection import KFold
 
-import data
-import fe.image, fe.text
-import models.base, models.text, models.image, models.mm
-from util import log_progress, RESULTS_DIR
+from mmlearn import data
+from mmlearn.models import image, text, mm
+from mmlearn.util import log_progress, RESULTS_DIR
 
 METRICS = {
     "ca": sklearn.metrics.accuracy_score,
@@ -48,7 +47,7 @@ def save_results(results, save_dir=RESULTS_DIR):
         results[mname].to_csv(sep="\t", index=True, header=True)
 
 
-def holdout(dataset, model, metrics=METRICS, ratio=0.7, shuffle=True, dataframe=False):
+def holdout(dataset, model, metrics=METRICS, ratio=0.7, shuffle=True, dataframe=False, random_state=42):
     """Train and evaluate given model on given dataset with a holdout test set.
 
     Args:
@@ -59,6 +58,7 @@ def holdout(dataset, model, metrics=METRICS, ratio=0.7, shuffle=True, dataframe=
         ratio: The holdout ratio. Use len(dataset)*ratio examples for training.
         shuffle: Shuffle the given dataset pre-training.
         dataframe: Return results as a pandas dataframe.
+        random_state: Random see to use when needed. 'None' not to use a seed.
 
     Returns:
         A dict of scores of form {'metric_name': number, ...}.
@@ -66,16 +66,19 @@ def holdout(dataset, model, metrics=METRICS, ratio=0.7, shuffle=True, dataframe=
 
     log_progress(f"Evaluating (holdout) {type(model).__name__} model on {type(dataset).__name__} dataset...")
     split = int(len(dataset) * ratio)
-    ids = np.random.RandomState(seed=42).permutation(len(dataset)) if shuffle else np.arange(len(dataset))
+    ids = np.random.RandomState(seed=random_state).permutation(len(dataset)) if shuffle else np.arange(len(dataset))
     train_ids, test_ids = ids[:split], ids[split:]
 
     targets, pred = _get_predictions(dataset, model, train_ids, test_ids)
     log_progress(f"Computing metric scores...")
     results = {mname:metrics[mname](targets, pred) for mname in metrics}
 
+    if dataframe:
+        results = pd.DataFrame.from_dict({mname:[results[mname]] for mname in results})
+
     return results
 
-def holdout_many(datasets, models, metrics=METRICS, ratio=0.7, shuffle=True, dataframe=True):
+def holdout_many(datasets, models, metrics=METRICS, ratio=0.7, shuffle=True, dataframe=True, random_state=42):
     """Train and evaluate multiple models on multiple datasets with a holdout test set.
 
     Args:
@@ -103,7 +106,7 @@ def holdout_many(datasets, models, metrics=METRICS, ratio=0.7, shuffle=True, dat
     return all_results
     
 
-def cross_validate(dataset, model, metrics=METRICS, folds=4, shuffle=True, dataframe=False):
+def cross_validate(dataset, model, metrics=METRICS, folds=4, shuffle=True, dataframe=False, random_state=42):
     """Train and evaluate given model on given dataset with k-fold cross-validation.
 
     Args:
@@ -114,14 +117,14 @@ def cross_validate(dataset, model, metrics=METRICS, folds=4, shuffle=True, dataf
         folds: Number of folds (k) for k-fold cross-validation.
         shuffle: Shuffle the given dataset pre-training.
         dataframe: Return results as a pandas dataframe.
+        random_state: Random see to use when needed. 'None' not to use a seed.
 
     Returns:
         A dict of scores of form {'metric_name': number, ...}.
     """
 
     log_progress(f"Cross-validating {type(model).__name__} model on {type(dataset).__name__} dataset...")
-    seed = 420
-    kfold = KFold(n_splits=folds, shuffle=shuffle, random_state=seed)
+    kfold = KFold(n_splits=folds, shuffle=shuffle, random_state=random_state)
     all_ids = np.arange(len(dataset))
     
     results = {mname: np.ndarray([folds,]) for mname in metrics}
@@ -137,9 +140,13 @@ def cross_validate(dataset, model, metrics=METRICS, folds=4, shuffle=True, dataf
         #fold_results = {mname:metrics[mname](targets, pred) for mname in metrics}
     
     avg_results = {mname: np.mean(results[mname]) for mname in results}
+    if dataframe:
+        avg_results = pd.DataFrame.from_dict({mname:[avg_results[mname]] for mname in avg_results})
+
     return avg_results
 
-def cross_validate_many(datasets, models, metrics=METRICS, folds=4, shuffle=True, dataframe=True):
+def cross_validate_many(datasets, models, metrics=METRICS, folds=4, shuffle=True,
+                        dataframe=True, random_state=42):
     """Train and evaluate multiple models on multiple datasets with cross-validation.
 
     Args:
@@ -154,7 +161,8 @@ def cross_validate_many(datasets, models, metrics=METRICS, folds=4, shuffle=True
     all_results = {mname: np.ndarray([len(models), len(datasets)]) for mname in metrics}
     for m, mdname in enumerate(models):
         for d, dname in enumerate(datasets):
-            results = cross_validate(datasets[dname], models[mdname], folds=folds, shuffle=shuffle)
+            results = cross_validate(datasets[dname], models[mdname], folds=folds,
+                                    shuffle=shuffle, random_state=random_state)
             for mname in metrics:
                 all_results[mname][m, d] = results[mname]
 

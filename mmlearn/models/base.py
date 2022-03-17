@@ -16,8 +16,8 @@ import sklearn.metrics
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-from data import MultimodalDataset
-from util import log_progress, DEVICE, REG_PARAM_RANGE
+from mmlearn.data import MultimodalDataset
+from mmlearn.util import log_progress, DEVICE, REG_PARAM_RANGE
 
 TRAIN_BSIZE = 32
 PRED_BSIZE = 16
@@ -187,8 +187,8 @@ class ClsModel(ABC):
 class RandomClassifier(ClsModel):
     """Predicts random class for every test instance."""
 
-    def __init__(self):
-        pass
+    def __init__(self, random_state=42):
+        self.seed = random_state
     
     def train(self, dataset, train_ids=None):
         dataset, train_ids = prepare_input(dataset, train_ids)
@@ -198,7 +198,7 @@ class RandomClassifier(ClsModel):
     
     def predict(self, dataset, test_ids=None):
         dataset, test_ids = prepare_input(dataset, test_ids)
-        return np.random.randint(0, self.n_cls, len(test_ids))
+        return np.random.RandomState(seed=self.seed).randint(0, self.n_cls, len(test_ids))
 
 
 class MajorityClassifier(ClsModel):

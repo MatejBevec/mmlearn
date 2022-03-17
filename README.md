@@ -1,3 +1,6 @@
+**Easy-to-use and flexible multimodal classification library with a sk-learn-like interface.
+Offers traditional and neural image, text and multimodal models with a standardized interface as well as feature extractors and evaluation utilities.**
+
 ## Usage
 
 ### Quickly deploy and evaluate a model

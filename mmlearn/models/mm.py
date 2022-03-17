@@ -25,25 +25,25 @@ from simpletransformers.classification import ClassificationModel
 from tpot import TPOTClassifier
 from sentence_transformers import SentenceTransformer
 
-from models.base import ClsModel, prepare_input, get_classifier
-import fe.text
-import fe.image
-import models.text
-import models.image
-from util import log_progress, DEVICE, USE_CUDA, REG_PARAM_RANGE
+from mmlearn.models.base import ClsModel, prepare_input, get_classifier
+from mmlearn.fe import text as textfe
+from mmlearn.fe import image as imgfe
+from mmlearn.models import text
+from mmlearn.models import image
+from mmlearn.util import log_progress, DEVICE, USE_CUDA, REG_PARAM_RANGE
 
 
 class LateFusion(ClsModel):
 
-    def __init__(self, image_model=models.image.ImageSkClassifier(),
-                        text_model=models.text.TextSkClassifier(clf="lr"),
+    def __init__(self, image_model=image.ImageSkClassifier(),
+                        text_model=text.TextSkClassifier(clf="lr"),
                         combine="max"):
         """
         Multimodal late fusion model. Combine prediction of an image model and a text model.
 
         Args:
-            image_model: An image classifier from models.image.
-            text_model: A text classifier from models.text.
+            image_model: An image classifier from image.
+            text_model: A text classifier from text.
             combine: Method for combining predictions. "max", "sum", or "stack".
         """
 
@@ -72,13 +72,13 @@ class LateFusion(ClsModel):
 
 class NaiveEarlyFusion(ClsModel):
 
-    def __init__(self, image_fe=fe.image.MobileNetV3(), text_fe=fe.text.SentenceBERT(), clf="svm"):
+    def __init__(self, image_fe=imgfe.MobileNetV3(), text_fe=textfe.SentenceBERT(), clf="svm"):
         """Naive multimodal early fusion model.
             Image and text features are extracted, concatenated and fed to a classifier.
 
         Args:
-            image_fe: An image feature extractor from fe.image.
-            text_fe: A text feature extractor from fe.text.
+            image_fe: An image feature extractor from imgfe.
+            text_fe: A text feature extractor from textfe.
             clf: Classifier - string shorthand or a sklearn estimator instance.
                 See [todo] for list of shorthands.
         """

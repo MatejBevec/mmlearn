@@ -29,7 +29,7 @@
 # Considerations:
 # TODO: wrap Pytorch NN classifiers and "auto reg" sklearn classifiers into sklearn-like classes!!!!
 # TODO: how many separate premade classifiers should be provided?
-# TODO: think about the module naming (fe.image and models.image might clash)
+# TODO: think about the module naming (fe.image and image might clash)
 # TODO: are mutable (instanciated) default arguments a problem? !!! -> looks like they are
 # TODO: support for when embedding space or text space is larger than memory?
 # TODO: make MultimodalDataset subscriptable?
@@ -55,10 +55,11 @@ import logging
 from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score
 
-import data
-import fe.image, fe.text
-import models.base, models.text, models.image, models.mm
-import eval
+from mmlearn import data
+from mmlearn.fe import image as imgfe 
+from mmlearn.fe import text as textfe
+from mmlearn.models import base, image, text, mm
+from mmlearn import eval
 
 logging.basicConfig(level=logging.INFO)
 
@@ -84,7 +85,7 @@ if __name__ == "__main__":
 
     # CLASSIFICATION MODEL
 
-    # model = models.text.TextSkClassifier(fe=fe.text.NGrams(), clf="svm_best")
+    # model = text.TextSkClassifier(fe=fe.text.NGrams(), clf="svm_best")
     # split = int(0.7 * len(dataset))
     # perm = np.random.permutation(len(dataset))
     # train_ids = perm[:split]
@@ -99,15 +100,18 @@ if __name__ == "__main__":
 
     # EVALUATE MULTIPLE MODELS AND DATASETS
 
-    model= models.base.MajorityClassifier()
-    model2 = models.text.TextSkClassifier(fe=fe.text.NGrams(), clf="svm_best")
-    model3 = models.text.TextSkClassifier(fe=fe.text.SentenceBERT(), clf="svm_best")
-    all_models = {"majority": model, "ngrams_svm": model2, "bert_svm": model3}
+    model= base.MajorityClassifier()
+    model2 = text.TextSkClassifier(fe=fe.text.NGrams(), clf="svm_best")
+    #model3 = text.TextSkClassifier(fe=fe.text.SentenceBERT(), clf="svm_best")
+    all_models = {"majority": model, "ngrams_svm": model2}
     all_ds = {"tasty": dataset, "faux": dataset2}
 
-    results = eval.holdout_many(all_ds, all_models)
-    for metric in results:
-        print("\n", metric, "\n", results[metric])
+    print(eval.holdout(dataset, model2, dataframe=True))
+    print(eval.cross_validate(dataset, model2, dataframe=True))
+
+    # results = eval.holdout_many(all_ds, all_models)
+    # for metric in results:
+    #     print("\n", metric, "\n", results[metric])
 
 
 

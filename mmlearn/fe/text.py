@@ -17,9 +17,8 @@ from sklearn.pipeline import FeatureUnion, Pipeline
 import gensim.test.utils
 from gensim.models import doc2vec
 
-from data import MultimodalDataset
-
-from util import log_progress, DEVICE, USE_CUDA, SAVE_DIR
+from mmlearn.data import MultimodalDataset
+from mmlearn.util import log_progress, DEVICE, USE_CUDA, SAVE_DIR
 
 TEXT_FE_BSIZE = 4
 

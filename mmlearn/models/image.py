@@ -15,19 +15,19 @@ from sklearn.svm import LinearSVC
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestClassifier
 
-from models.base import ClsModel, prepare_input, get_classifier
-from models import base
-import fe.image
-from util import log_progress, DEVICE, REG_PARAM_RANGE
+from mmlearn.models.base import ClsModel, prepare_input, get_classifier
+from mmlearn.models import base
+from mmlearn.fe import image as imgfe
+from mmlearn.util import log_progress, DEVICE, REG_PARAM_RANGE
 
 class ImageNeuralClassifier():
 
-    def __init__(self, fe=fe.image.MobileNetV3()):
+    def __init__(self, fe=imgfe.MobileNetV3()):
         """Image feature extractor + a pytorch NN classifier.
             The classifier is a 2-layer fully-connected network with ReLU act., Adam optim. and cross-entropy loss. 
         
         Args:
-            fe: A feature extractor model from 'fe.image'.
+            fe: A feature extractor model from 'imgfe'.
         """
         
         self.fe = fe
@@ -61,11 +61,11 @@ class ImageNeuralClassifier():
 
 class ImageSkClassifier():
 
-    def __init__(self, fe=fe.image.MobileNetV3(), clf="svm", best_reg=True):
+    def __init__(self, fe=imgfe.MobileNetV3(), clf="svm", best_reg=True):
         """Image feature extractor + a scikit-learn classifier.
         
         Args:
-            fe: A feature extractor model from 'fe.image'.
+            fe: A feature extractor model from 'imgfe'.
             clf: The classifier to use. 'svm', 'lr', 'rf' or an instance of any sklearn classifer.
         """
         

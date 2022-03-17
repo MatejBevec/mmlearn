@@ -27,20 +27,19 @@ from simpletransformers.classification import ClassificationModel
 from tpot import TPOTClassifier
 from sentence_transformers import SentenceTransformer
 
-from models.base import ClsModel, prepare_input, get_classifier, REG_PARAM_RANGE
-import models.base
-import fe.text
-from util import log_progress, DEVICE, USE_CUDA
+from mmlearn.models.base import ClsModel, prepare_input, get_classifier, REG_PARAM_RANGE
+from mmlearn.fe import text as textfe
+from mmlearn.util import log_progress, DEVICE, USE_CUDA
 
 
 
 class TextSkClassifier(ClsModel):
 
-    def __init__(self, fe=fe.text.NGrams(), clf="svm_best"):
+    def __init__(self, fe=textfe.NGrams(), clf="svm_best"):
         """Word and character n-gram features + sklearn classifier.
         
         Args:
-            fe: A feature extractor model from 'fe.text'. Default is fe.text.NGrams.
+            fe: A feature extractor model from 'textfe'. Default is textfe.NGrams.
             clf: The classifier to use. 'svm', 'lr', 'rf' or an instance of any sklearn classifer.
         """
         
@@ -122,8 +121,8 @@ class TPOT(ClsModel):
     AutoML tool that automatically evolves scikit-learn pipelines based on tree ensemble learners.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, random_state=42):
+        self.seed = random_state
 
     def train(self, dataset, train_ids):
         dataset, train_ids = prepare_input(dataset, train_ids)
@@ -138,7 +137,7 @@ class TPOT(ClsModel):
         clf = TPOTClassifier(generations=5,
                             population_size=50,
                             verbosity=2,
-                            random_state=42,
+                            random_state=self.seed,
                             config_dict="TPOT sparse")
 
         self.model = sklearn.pipeline.Pipeline([('union',

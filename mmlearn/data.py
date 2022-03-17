@@ -6,16 +6,13 @@ import urllib.request
 
 import numpy as np
 import pandas as pd
-import torch
-import torchvision.transforms as tf
 import torchvision.transforms.functional as F
 from torch.utils.data import Dataset
 from PIL import Image
 from sklearn.preprocessing import MultiLabelBinarizer
 import gdown
-from google_drive_downloader import GoogleDriveDownloader as gdd
 
-from util import log_progress, DATA_DIR
+from mmlearn.util import log_progress, DATA_DIR
 
 DEF_IMG_H = 400
 DEF_IMG_W = 400
@@ -134,7 +131,7 @@ class MultimodalDataset(Dataset):
 
 # INCLUDED MULTIMODAL DATASETS
 
-# TODO: change download source from drive
+# TODO: change download source from dropbox
 def _download_dataset(source, name):
     log_progress(f"Downloading dataset to {DATA_DIR}/{name}...")
     if not os.path.isdir(DATA_DIR):

@@ -1,0 +1,13 @@
+gitdir
+numpy
+pandas
+torch
+torchvision
+scipy
+sklearn
+Pillow
+pytorch-pretrained-vit
+simpletransformers
+tpot
+gdown
+sentence_transformers
