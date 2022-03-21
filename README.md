@@ -1,9 +1,9 @@
-**Easy-to-use and flexible multimodal classification library with a sk-learn-like interface.
-Offers traditional and neural image, text and multimodal models with a standardized interface as well as feature extractors and evaluation utilities.**
+**Easy-to-use and flexible multimodal classification library with a sk-learn-like interface.**
+Offers traditional and neural image, text and multimodal models with a standardized interface and feature extractors. Furhter, it also contains evaluation utilities.
 
 ## Usage
 
-### Quickly deploy and evaluate a model
+### Elegantly initialize, train and evaluate a model
 
 ```python
     import data, eval
@@ -16,7 +16,7 @@ Offers traditional and neural image, text and multimodal models with a standardi
     results = eval.holdout(dataset, model, ratio=0.7)
 ```
 
-### Multimodal dataset
+### Considering multiple modalities
 
 ```python
 import data
@@ -33,7 +33,7 @@ optional_index = [0, 7, 9]
 texts, targets = my_dataset.get_texts(optional_index)
 ```
 
-### Feature extractors
+### Extracting only features for downstream learning
 Various models are available to be used as standalone feature extractors
 ```python
 import fe.image, fe.text
@@ -50,7 +50,7 @@ all_features = np.concatenate([ img_fe(imgs) , text_fe(texts) ])
 
 ```
 
-### Classification models
+## Classification
 Various image-only, text-only and multimodal classification models are available
 
 ```python
@@ -84,7 +84,7 @@ accuracy = ca(labels, pred)
 
 ```
 
-### Evaluation
+## Evaluation
 Utilities that simplify evaluation of multiple models on multiple dataset are also available.
 
 ```python
@@ -111,3 +111,8 @@ results = eval.cross_validate_many(datasets, clf_models, folds=4)
 # A dict of (models, datasets) DataFrames for every metric
 
 ```
+
+
+## Contributing TODO
+
+## Issues, PRs etc. TODO
