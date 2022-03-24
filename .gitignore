@@ -1,5 +1,6 @@
 **/__pycache__
 mmlearn/runs
+data
 mmlearn/data
 mmlearn/data_source
 mmlearn/pers

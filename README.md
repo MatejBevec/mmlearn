@@ -1,25 +1,33 @@
 **Easy-to-use and flexible multimodal classification library with a sk-learn-like interface.**
-Offers traditional and neural image, text and multimodal models with a standardized interface and feature extractors. Furhter, it also contains evaluation utilities.
+Offers traditional and neural image, text and multimodal models with a standardized interface as well as feature extractors and evaluation utilities.
 
 ## Usage
+
+### Install from repo
+```
+git clone https://github.com/MatejBevec/mmlearn
+cd mmlearn
+pip install .
+```
 
 ### Elegantly initialize, train and evaluate a model
 
 ```python
-    import data, eval
-    import models.mm
-    import fe.image, fe.text
+import mmlearn as mm
+from mm import data, eval
+from mm import models.mm
+from mm import fe.image, fe.text
 
-    dataset = data.CaltechBirds()
-    model = models.mm.EarlyFusion(image_fe=fe.image.ResNet(), text_fe=fe.text.SentenceBERT(), clf="svm")
+dataset = data.CaltechBirds()
+model = models.mm.EarlyFusion(image_fe=fe.image.ResNet(), text_fe=fe.text.SentenceBERT(), clf="svm")
 
-    results = eval.holdout(dataset, model, ratio=0.7)
+results = eval.holdout(dataset, model, ratio=0.7)
 ```
 
 ### Considering multiple modalities
 
 ```python
-import data
+from mm import data
 
 my_dataset = data.MultimodalDataset("path_to_directory")
 incl_dataset = data.TastyRecipes()
@@ -36,7 +44,7 @@ texts, targets = my_dataset.get_texts(optional_index)
 ### Extracting only features for downstream learning
 Various models are available to be used as standalone feature extractors
 ```python
-import fe.image, fe.text
+from mm import fe.image, fe.text
 
 # All extractors take a batch of images/texts as input and produce a (batch_size, dim) Ndarray of embeddings
 # Some accept optional parameters
@@ -56,9 +64,9 @@ Various image-only, text-only and multimodal classification models are available
 ```python
 import numpy as np
 from sklearn.metrics import accuracy_score as ca
-import data
-import models.image, models.text
-import fe.image, fe.text
+from mm import data
+from mm import models.image, models.text
+from mm import fe.image, fe.text
 
 # All models subclass ClsModel and provide an identical interface, with "train" and "predict" methods
 # Some accept optional parameters
@@ -88,8 +96,8 @@ accuracy = ca(labels, pred)
 Utilities that simplify evaluation of multiple models on multiple dataset are also available.
 
 ```python
-import data, eval
-import models.image, models.text, models.mm
+from mm import data, eval
+from mm import models.image, models.text, models.mm
 
 # Evaluate a single model with a holdout set using default metrics
 mm_model = models.mm.EarlyFusion()

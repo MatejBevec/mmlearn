@@ -14,12 +14,17 @@ import gdown
 
 from mmlearn.util import log_progress, DATA_DIR
 
-DEF_IMG_H = 400
-DEF_IMG_W = 400
-
 # HELPER FUNCTIONS
 
-def load_image(path, h=DEF_IMG_H, w=DEF_IMG_W, transform=None):
+def load_image(path, h=400, w=400, transform=None):
+    """Load an image into a normalized pytorch Tensor.
+    
+    Args:
+        h: Height of output Tensor.
+        w: Width of output Tensor.
+        transform: A custom pytorch Transform to apply to image. If None, resize and normalize.
+    """
+
     pil_img = Image.open(path).convert("RGB")
     if transform:
         img = transform(img)
@@ -46,7 +51,7 @@ def _has_dataset(root):
 
 class MultimodalDataset(Dataset):
 
-    def __init__(self, dir, img_size=DEF_IMG_H, col=1, frac=None, shuffle=False):
+    def __init__(self, dir, img_size=400, col=1, frac=None, shuffle=False):
         """Create a multimodal dataset object from directory.
 
         Args:
@@ -54,12 +59,12 @@ class MultimodalDataset(Dataset):
                 * ./image directory containing one .jpg file per training example
                 * ./texts directory containing one .txt file per example, with matching filenames
                 * ./target.tsv file with filenames in col = 0 and target classes in col >= 1
-            img_size: Image height (= width) after loading.
+            img_size: Image height and width after loading.
             col: Target class column in target.tsv.
             frac: Choose < 1 to subsample loaded dataset.
             shuffle: Randomly shuffle training examples.
         """
-        print(dir)
+
         if not _has_dataset(dir):
             raise FileNotFoundError("Provided 'dir' does not contain dataset in required form.")
 

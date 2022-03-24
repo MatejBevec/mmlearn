@@ -17,10 +17,10 @@ import torch
 from torch.utils.data import DataLoader, TensorDataset
 
 from mmlearn.data import MultimodalDataset
-from mmlearn.util import log_progress, DEVICE, REG_PARAM_RANGE
+from mmlearn.util import log_progress, DEVICE
 
-TRAIN_BSIZE = 32
-PRED_BSIZE = 16
+TRAIN_BATCH_SIZE = 32   # Default batch size for training ClsModel-s
+PRED_BATCH_SIZE = 16    # Default batch size for prediction using ClsModel-s
 
 # HELPER METHODS
 
@@ -34,7 +34,23 @@ def prepare_input(dataset, ids):
     return dataset, ids
 
 
-def get_classifier(clf, best_reg=False):
+def get_classifier(clf):
+    """Returns one of the pre-configured sklearn-style classifiers.
+        Used to parse the "clf" argument in ClsModel constructors when a shorthand string is provided.
+
+    Args:
+        clf: One of the following string abbreviations, referring to the type of classifier to return:
+                "svm": sklearn.svm.LinearSVC() with default settings              
+                "svm_best": Fit LinearSVC models with different reguralization params (C = [0.1:500]) and pick best performer.
+                "lr": sklearn.linear_model.LogisticRegression() with default settings
+                "lr_best": Fit LogisticRegression models with different reguralization params (C = [0.1:500]) and pick best performer.
+                "rf": sklearn.ensemble.RandomForestClassifier() with default settings
+                "nn": sklearn.neural_network.MLPClassifier() with default settings
+                "tpot": sklearn.tpot.TPOTClassifier(generations=5, population_size=50,
+                                        verbosity=2, random_state=42, max_time_mins=120)
+    
+    """
+
     if clf == "svm_best":
         clf = AutoLinearSVM()
     elif clf == "svm":
@@ -60,6 +76,8 @@ def get_classifier(clf, best_reg=False):
 
 def train_torch_nn(model, dataset, loss_func, optimizer,
                                     train_ids=None, batch_size=32, epochs=10, lr=1e-3):
+    """Trains a pytorch Module using given pytorch Dataset and training parameters."""
+
     model = model.to(DEVICE)
     dl = DataLoader(dataset, batch_size=batch_size, sampler=train_ids)
     # 'dataset' must be a pytorch dataset that returns (features, labels)
@@ -80,14 +98,16 @@ def train_torch_nn(model, dataset, loss_func, optimizer,
                 batch_loss = 0
 
 def predict_torch_nn(model, dataset, test_ids=None):
-        model = model.to(DEVICE).eval()
-        dl = DataLoader(dataset, batch_size=PRED_BSIZE, sampler=test_ids)
-        pred_list = []
-        for i, (features, labels) in enumerate(dl, 0):
-            features = features.to(DEVICE)
-            out = model(features).cpu().detach().numpy()
-            pred_list.append(out.argmax(axis=1))
-        return np.concatenate(pred_list, axis=0).astype(int)
+    """Performs the inference step on given pytorch Module and Dataset."""
+
+    model = model.to(DEVICE).eval()
+    dl = DataLoader(dataset, batch_size=PRED_BATCH_SIZE, sampler=test_ids)
+    pred_list = []
+    for i, (features, labels) in enumerate(dl, 0):
+        features = features.to(DEVICE)
+        out = model(features).cpu().detach().numpy()
+        pred_list.append(out.argmax(axis=1))
+    return np.concatenate(pred_list, axis=0).astype(int)
 
 
 # HELPER SKLEARN-STYLE END CLASSIFIERS (after fe)

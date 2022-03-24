@@ -20,7 +20,7 @@ from gensim.models import doc2vec
 from mmlearn.data import MultimodalDataset
 from mmlearn.util import log_progress, DEVICE, USE_CUDA, SAVE_DIR
 
-TEXT_FE_BSIZE = 4
+TEXT_FE_BATCH_SIZE = 4  # Batch size when extracting features from text
 
 
 # HELPER FUNCTIONS
@@ -36,7 +36,7 @@ def _extract_text_features(fe, dataset, ids=None):
         raise TypeError("'fe' must be a TextExtractor from fe.text")
     features_list = []
     labels_list = []
-    dl = DataLoader(dataset, batch_size=TEXT_FE_BSIZE, sampler=ids)
+    dl = DataLoader(dataset, batch_size=TEXT_FE_BATCH_SIZE, sampler=ids)
     for i, (_, texts, labels) in enumerate(dl, 0):
         features_list.append(fe(texts))
         labels_list.append(labels)

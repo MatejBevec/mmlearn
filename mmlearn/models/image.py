@@ -61,7 +61,7 @@ class ImageNeuralClassifier():
 
 class ImageSkClassifier():
 
-    def __init__(self, fe=imgfe.MobileNetV3(), clf="svm", best_reg=True):
+    def __init__(self, fe=imgfe.MobileNetV3(), clf="svm_best", best_reg=True):
         """Image feature extractor + a scikit-learn classifier.
         
         Args:
@@ -76,29 +76,15 @@ class ImageSkClassifier():
         dataset, train_ids = prepare_input(dataset, train_ids)
         log_progress(f"Training {type(self.fe).__name__} + {type(self.model).__name__} classifier model...")
 
-        features, labels = self.fe.extract_all(dataset, train_ids)
+        texts, labels = dataset.get_texts(train_ids)
+        train_ft = self.fe(texts, train=True)
 
-        if isinstance(self.model, list):
-            split = int(len(features)*0.7)
-            tr_ft, tr_lbl = features[:split], labels[:split]
-            test_ft, test_lbl = features[split:], labels[split:]
-            scores = []
-            for i,m in enumerate(self.model):
-                m.fit(tr_ft, tr_lbl)
-                pred = m.predict(test_ft)
-                score = sklearn.metrics.f1_score(test_lbl, pred, average="macro")
-                log_progress(f"C = {REG_PARAM_RANGE[i]}, score = {score:.3f}", color="white")
-                scores.append(score)
-            best = np.argmax(scores)
-            log_progress(f"Picked C = {REG_PARAM_RANGE[best]}")
-            self.model = self.model[best]
-
-        self.model.fit(features, labels)
+        self.model.fit(train_ft, labels)
 
     def predict(self, dataset, test_ids):
         dataset, test_ids = prepare_input(dataset, test_ids)
-        features, _ = self.fe.extract_all(dataset, test_ids)
-        return self.model.predict(features)
+        texts, _ = dataset.get_texts(test_ids)
+        return self.model.predict(self.fe(texts, train=False))
 
 
 class TunedMobileNetV3(ClsModel):
@@ -128,6 +114,7 @@ class TunedMobileNetV3(ClsModel):
 
         for epoch in range(self.epochs):
             batch_loss = 0
+            log_progress(f"Training epoch {epoch}/{self.epochs}...")
 
             for i,p in enumerate(self.model.features.parameters()):
                 #Each epoch we are going to unfreeze 2 parameters, the weights and bias of a layer
@@ -136,9 +123,7 @@ class TunedMobileNetV3(ClsModel):
                     p.requires_grad = True
 
             for i, batch in enumerate(dl, 0):
-                print(i)
                 imgs, texts, labels = batch
-                print(labels)
                 imgs = imgs.to(DEVICE)
                 labels = labels.to(DEVICE)
                 optimizer.zero_grad()
@@ -147,8 +132,8 @@ class TunedMobileNetV3(ClsModel):
                 loss.backward()
                 optimizer.step()
                 batch_loss += loss
-                if i%1 == 0:
-                    print(f"{i} batches done. Loss = {batch_loss/10}")
+                if i%10 == 0:
+                    log_progress(f"{i} batches done. Loss = {batch_loss/10}")
                     batch_loss = 0
 
     def predict(self, dataset, test_ids):

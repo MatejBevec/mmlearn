@@ -14,7 +14,7 @@ from sentence_transformers import SentenceTransformer
 from mmlearn.data import MultimodalDataset
 from mmlearn.util import log_progress, DEVICE, USE_CUDA
 
-IMG_FE_BSIZE = 4
+IMG_FE_BATCH_SIZE = 4   # Batch size when extracting features from images
 
 
 # HELPER FUNCTIONS
@@ -29,7 +29,7 @@ def _extract_image_features(fe, dataset, ids=None):
         raise TypeError("'fe' must be a ImageExtractor from fe.image")
     features_list = []
     labels_list = []
-    dl = DataLoader(dataset, batch_size=IMG_FE_BSIZE, sampler=ids)
+    dl = DataLoader(dataset, batch_size=IMG_FE_BATCH_SIZE, sampler=ids)
     for i, (imgs, _, labels) in enumerate(dl, 0):
         features_list.append(fe(imgs))
         labels_list.append(labels)

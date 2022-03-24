@@ -27,7 +27,7 @@ from simpletransformers.classification import ClassificationModel
 from tpot import TPOTClassifier
 from sentence_transformers import SentenceTransformer
 
-from mmlearn.models.base import ClsModel, prepare_input, get_classifier, REG_PARAM_RANGE
+from mmlearn.models.base import ClsModel, prepare_input, get_classifier
 from mmlearn.fe import text as textfe
 from mmlearn.util import log_progress, DEVICE, USE_CUDA
 

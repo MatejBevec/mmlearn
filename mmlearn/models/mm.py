@@ -86,7 +86,6 @@ class NaiveEarlyFusion(ClsModel):
         self.image_fe = image_fe
         self.text_fe = text_fe
         self.model = get_classifier(clf)
-        print(self.model)
 
     def train(self, dataset, train_ids):
         dataset, train_ids = prepare_input(dataset, train_ids)
