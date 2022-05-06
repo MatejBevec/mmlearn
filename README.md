@@ -10,7 +10,7 @@ cd mmlearn
 pip install .
 ```
 
-### Elegantly initialize, train and evaluate a model
+### Quickly initialize, train and evaluate a model
 
 ```python
 import mmlearn as mm
@@ -24,7 +24,7 @@ model = models.mm.EarlyFusion(image_fe=fe.image.ResNet(), text_fe=fe.text.Senten
 results = eval.holdout(dataset, model, ratio=0.7)
 ```
 
-### Considering multiple modalities
+## Dataset interface
 
 ```python
 from mm import data
@@ -41,7 +41,7 @@ optional_index = [0, 7, 9]
 texts, targets = my_dataset.get_texts(optional_index)
 ```
 
-### Extracting only features for downstream learning
+## Extracting only features for downstream learning
 Various models are available to be used as standalone feature extractors
 ```python
 from mm import fe.image, fe.text
