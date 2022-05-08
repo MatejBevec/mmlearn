@@ -15,11 +15,11 @@ pip install .
 ```python
 import mmlearn as mm
 from mm import data, eval
-from mm import models.mm
-from mm import fe.image, fe.text
+from mm.models import mm_models
+from mm.fe import image_fe, text_fe
 
 dataset = data.CaltechBirds()
-model = models.mm.EarlyFusion(image_fe=fe.image.ResNet(), text_fe=fe.text.SentenceBERT(), clf="svm")
+model = mm_models.EarlyFusion(image_fe=image_fe.ResNet(), text_fe=text_fe.SentenceBERT(), clf="svm")
 
 results = eval.holdout(dataset, model, ratio=0.7)
 ```
@@ -44,13 +44,13 @@ texts, targets = my_dataset.get_texts(optional_index)
 ## Extracting only features for downstream learning
 Various models are available to be used as standalone feature extractors
 ```python
-from mm import fe.image, fe.text
+from mm.fe import image_fe, text_fe
 
 # All extractors take a batch of images/texts as input and produce a (batch_size, dim) Ndarray of embeddings
 # Some accept optional parameters
 
-img_fe = fe.image.MobileNetV3()
-text_fe = fe.text.NGrams(word_n=[1,3], char_n=[2,4])
+img_fe = image_fe.MobileNetV3()
+text_fe = text_fe.NGrams(word_n=[1,3], char_n=[2,4])
 
 imgs, texts, targets = next(iter(dl)) 
 
@@ -65,14 +65,14 @@ Various image-only, text-only and multimodal classification models are available
 import numpy as np
 from sklearn.metrics import accuracy_score as ca
 from mm import data
-from mm import models.image, models.text
-from mm import fe.image, fe.text
+from mm.models import image_models, text_models
+from mm.fe import image_fe, text_fe
 
 # All models subclass ClsModel and provide an identical interface, with "train" and "predict" methods
 # Some accept optional parameters
 
-text_model = models.text.BERT()
-mm_model = models.mm.EarlyFusion(image_fe=fe.image.ViT(), text_fe=fe.text.TextCLIP(), clf="lr_best")
+text_model = text_models.BERT()
+mm_model = mm_models.EarlyFusion(image_fe=image_fe.ViT(), text_fe=text_fe.TextCLIP(), clf="lr_best")
 
 dataset = data.CaltechBirds()
 split = int(len(dataset)*0.7)
@@ -97,10 +97,10 @@ Utilities that simplify evaluation of multiple models on multiple dataset are al
 
 ```python
 from mm import data, eval
-from mm import models.image, models.text, models.mm
+from mm.models import image_models, text_models, mm_models
 
 # Evaluate a single model with a holdout set using default metrics
-mm_model = models.mm.EarlyFusion()
+mm_model = mm_models.EarlyFusion()
 recipes = data.TastyRecipes()
 
 results = eval.holdout(recipes, mm_model, ratio=0.7) # A dict of scores for every metric
@@ -112,7 +112,7 @@ datasets = {
 }
 clf_models = {
     "early_fusion": mm_model,
-    "bert": models.text.BERT()
+    "bert": text_models.BERT()
 }
 
 results = eval.cross_validate_many(datasets, clf_models, folds=4)
