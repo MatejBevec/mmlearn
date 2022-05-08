@@ -25,30 +25,30 @@ from simpletransformers.classification import ClassificationModel
 from tpot import TPOTClassifier
 from sentence_transformers import SentenceTransformer
 
-from mmlearn.models.base import ClsModel, prepare_input, get_classifier
-from mmlearn.fe import text as textfe
-from mmlearn.fe import image as imgfe
-from mmlearn.models import text
-from mmlearn.models import image
+from mmlearn.models.base_models import ClsModel, prepare_input, get_classifier
+from mmlearn.fe import text_fe as textfe
+from mmlearn.fe import image_fe as imgfe
+from mmlearn.models import text_models
+from mmlearn.models import image_models
 from mmlearn.util import log_progress, DEVICE, USE_CUDA, REG_PARAM_RANGE
 
 
 class LateFusion(ClsModel):
 
-    def __init__(self, image_model=image.ImageSkClassifier(),
-                        text_model=text.TextSkClassifier(clf="lr"),
+    def __init__(self, image_model="default",
+                        text_model="default",
                         combine="max"):
         """
         Multimodal late fusion model. Combine prediction of an image model and a text model.
 
         Args:
-            image_model: An image classifier from image.
-            text_model: A text classifier from text.
+            image_model: An image classifier from models.image. Default is ImageSkClassifier.
+            text_model: A text classifier from models.text. Default is TextSkClassifier.
             combine: Method for combining predictions. "max", "sum", or "stack".
         """
 
-        self.image_model = image_model
-        self.text_model = text_model
+        self.image_model = image_models.ImageSkClassifier() if image_model is "default" else image_model
+        self.text_model = text_models.TextSkClassifier(clf="lr") if text_model is "default" else text_model
 
     def train(self, dataset, train_ids):
         dataset, train_ids = prepare_input(dataset, train_ids)
@@ -72,19 +72,19 @@ class LateFusion(ClsModel):
 
 class NaiveEarlyFusion(ClsModel):
 
-    def __init__(self, image_fe=imgfe.MobileNetV3(), text_fe=textfe.SentenceBERT(), clf="svm"):
+    def __init__(self, image_fe="default", text_fe="default", clf="svm"):
         """Naive multimodal early fusion model.
             Image and text features are extracted, concatenated and fed to a classifier.
 
         Args:
-            image_fe: An image feature extractor from imgfe.
-            text_fe: A text feature extractor from textfe.
+            image_fe: An image feature extractor from fe.image. Default is MobileNetV3.
+            text_fe: A text feature extractor from fe.text. Default is SentenceBERT.
             clf: Classifier - string shorthand or a sklearn estimator instance.
                 See [todo] for list of shorthands.
         """
 
-        self.image_fe = image_fe
-        self.text_fe = text_fe
+        self.image_fe = imgfe.MobileNetV3() if image_fe is "default" else image_fe
+        self.text_fe = textfe.SentenceBERT() if text_fe is "default" else text_fe
         self.model = get_classifier(clf)
 
     def train(self, dataset, train_ids):

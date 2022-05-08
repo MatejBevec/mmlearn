@@ -27,15 +27,15 @@ from simpletransformers.classification import ClassificationModel
 from tpot import TPOTClassifier
 from sentence_transformers import SentenceTransformer
 
-from mmlearn.models.base import ClsModel, prepare_input, get_classifier
-from mmlearn.fe import text as textfe
+from mmlearn.models.base_models import ClsModel, prepare_input, get_classifier
+from mmlearn.fe import text_fe as textfe
 from mmlearn.util import log_progress, DEVICE, USE_CUDA
 
 
 
 class TextSkClassifier(ClsModel):
 
-    def __init__(self, fe=textfe.NGrams(), clf="svm_best"):
+    def __init__(self, fe="default", clf="svm_best"):
         """Word and character n-gram features + sklearn classifier.
         
         Args:
@@ -43,7 +43,7 @@ class TextSkClassifier(ClsModel):
             clf: The classifier to use. 'svm', 'lr', 'rf' or an instance of any sklearn classifer.
         """
         
-        self.fe = fe
+        self.fe = textfe.NGrams() if fe is "default" else fe
         self.model = get_classifier(clf)
 
     def train(self, dataset, train_ids):

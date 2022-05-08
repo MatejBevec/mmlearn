@@ -61,7 +61,7 @@ class MultimodalDataset(Dataset):
                 * ./target.tsv file with filenames in col = 0 and target classes in col >= 1
             img_size: Image height and width after loading.
             col: Target class column in target.tsv.
-            frac: Choose < 1 to subsample loaded dataset.
+            frac: Choose < 1 to randomly sub-sample loaded dataset.
             shuffle: Randomly shuffle training examples.
         """
 

@@ -15,22 +15,22 @@ from sklearn.svm import LinearSVC
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestClassifier
 
-from mmlearn.models.base import ClsModel, prepare_input, get_classifier
-from mmlearn.models import base
-from mmlearn.fe import image as imgfe
+from mmlearn.models.base_models import ClsModel, prepare_input, get_classifier
+from mmlearn.models import base_models
+from mmlearn.fe import image_fe as imgfe
 from mmlearn.util import log_progress, DEVICE, REG_PARAM_RANGE
 
 class ImageNeuralClassifier():
 
-    def __init__(self, fe=imgfe.MobileNetV3()):
+    def __init__(self, fe="default"):
         """Image feature extractor + a pytorch NN classifier.
             The classifier is a 2-layer fully-connected network with ReLU act., Adam optim. and cross-entropy loss. 
         
         Args:
-            fe: A feature extractor model from 'imgfe'.
+            fe: A feature extractor model from 'fe.image'. Default is MobileNetV3.
         """
         
-        self.fe = fe
+        self.fe = imgfe.MobileNetV3() if fe is "default" else fe
 
     def train(self, dataset, train_ids):
         dataset, train_ids = prepare_input(dataset, train_ids)
@@ -49,42 +49,41 @@ class ImageNeuralClassifier():
         loss_fn = nn.CrossEntropyLoss()
         optim = torch.optim.Adam(self.model.parameters(), lr=lr)
 
-        base.train_torch_nn(self.model, ft_dataset, loss_fn, optim, lr=lr)
+        base_models.train_torch_nn(self.model, ft_dataset, loss_fn, optim, lr=lr)
 
 
     def predict(self, dataset, test_ids):
         dataset, test_ids = prepare_input(dataset, test_ids)
         features, labels = self.fe.extract_all(dataset, test_ids)
         ft_dataset = TensorDataset(torch.from_numpy(features), torch.from_numpy(labels))
-        return base.predict_torch_nn(self.model, ft_dataset)
+        return base_models.predict_torch_nn(self.model, ft_dataset)
 
 
 class ImageSkClassifier():
 
-    def __init__(self, fe=imgfe.MobileNetV3(), clf="svm_best", best_reg=True):
+    def __init__(self, fe="default", clf="svm_best", best_reg=True):
         """Image feature extractor + a scikit-learn classifier.
         
         Args:
-            fe: A feature extractor model from 'imgfe'.
+            fe: A feature extractor model from 'fe.image'. Default is MobileNetV3.
             clf: The classifier to use. 'svm', 'lr', 'rf' or an instance of any sklearn classifer.
         """
         
-        self.fe = fe
-        self.model = get_classifier(clf, best_reg=best_reg)
+        self.fe = imgfe.MobileNetV3() if fe is "default" else fe
+        self.model = get_classifier(clf)
 
     def train(self, dataset, train_ids):
         dataset, train_ids = prepare_input(dataset, train_ids)
         log_progress(f"Training {type(self.fe).__name__} + {type(self.model).__name__} classifier model...")
 
-        texts, labels = dataset.get_texts(train_ids)
-        train_ft = self.fe(texts, train=True)
+        features, labels = self.fe.extract_all(dataset, train_ids)
 
-        self.model.fit(train_ft, labels)
+        self.model.fit(features, labels)
 
     def predict(self, dataset, test_ids):
         dataset, test_ids = prepare_input(dataset, test_ids)
-        texts, _ = dataset.get_texts(test_ids)
-        return self.model.predict(self.fe(texts, train=False))
+        features, labels = self.fe.extract_all(dataset, test_ids)
+        return self.model.predict(features)
 
 
 class TunedMobileNetV3(ClsModel):

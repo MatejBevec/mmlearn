@@ -10,7 +10,7 @@ import sklearn.metrics
 from sklearn.model_selection import KFold
 
 from mmlearn import data
-from mmlearn.models import image, text, mm
+from mmlearn.models import image_models, mm_models, text_models
 from mmlearn.util import log_progress, RESULTS_DIR
 
 METRICS = {

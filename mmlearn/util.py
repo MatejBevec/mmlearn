@@ -3,7 +3,7 @@ import logging
 import torch
 
 REG_PARAM_RANGE = [0.1, 0.5, 1, 5, 10, 20, 50, 100, 500]
-MAX_ITER_SK = 100000
+MAX_ITER_SKLEARN = 100000
 SAVE_DIR = "pers"
 DATA_DIR = "data"
 RESULTS_DIR = "results"
