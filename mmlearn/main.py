@@ -63,8 +63,8 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import accuracy_score
 
 from mmlearn import data
-from mmlearn.fe import image_fe as imgfe 
-from mmlearn.fe import text_fe as textfe
+from mmlearn.fe import image_fe
+from mmlearn.fe import text_fe
 from mmlearn.models import base_models, image_models, mm_models, text_models
 from mmlearn import eval
 
@@ -75,19 +75,23 @@ if __name__ == "__main__":
     # MULTIMODAL DATASETS
 
     dataset = data.TastyRecipes()
+    print("tr loaded")
     dataset2 = data.Fauxtography()
+    print("fx loaded")
 
     dl = DataLoader(dataset, batch_size=4, shuffle=True)
-    imgs, texts, targets = next(iter(dl))
+    #imgs, texts, targets = next(iter(dl))
+    batch = next(iter(dl))
+    print(batch)
 
     # USE FEATURE EXTRACTORS SEPARATELY
 
-    # img_fe = fe.image.MobileNetV3()
-    # img_f = img_fe(imgs)
+    # img_fe = image_fe.MobileNetV3()
+    # img_f = img_fe(batch["image"])
     # print("img features:, ", img_f)
 
-    # text_fe = fe.text.WordNGrams()
-    # text_f = text_fe(texts)
+    # text_fe = text_fe.WordNGrams()
+    # text_f = text_fe(batch["text"])
     # print("text features: ", text_f)
 
     # CLASSIFICATION MODEL
@@ -108,7 +112,7 @@ if __name__ == "__main__":
     # EVALUATE MULTIPLE MODELS AND DATASETS
 
     model= base_models.MajorityClassifier()
-    model2 = text_models.TextSkClassifier(fe=textfe.NGrams(), clf="svm_best")
+    model2 = text_models.TextSkClassifier(fe=text_fe.NGrams(), clf="svm_best")
     model3 = image_models.ImageSkClassifier()
     #model3 = text.TextSkClassifier(fe=fe.text.SentenceBERT(), clf="svm_best")
     all_models = {"majority": model, "ngrams_svm": model2, "mobilenet_svm": model3}

@@ -80,7 +80,7 @@ def train_torch_nn(model, dataset, loss_func, optimizer,
 
     model = model.to(DEVICE)
     dl = DataLoader(dataset, batch_size=batch_size, sampler=train_ids)
-    # 'dataset' must be a pytorch dataset that returns (features, labels)
+    # 'dataset' must be a pytorch dataset 
 
     for epoch in range(epochs):
         batch_loss = 0

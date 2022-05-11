@@ -122,7 +122,7 @@ class TunedMobileNetV3(ClsModel):
                     p.requires_grad = True
 
             for i, batch in enumerate(dl, 0):
-                imgs, texts, labels = batch
+                imgs, labels = batch["image"], batch["target"]
                 imgs = imgs.to(DEVICE)
                 labels = labels.to(DEVICE)
                 optimizer.zero_grad()
@@ -141,8 +141,8 @@ class TunedMobileNetV3(ClsModel):
         dl = DataLoader(dataset, batch_size=bs, sampler=test_ids)
         pred = np.ndarray(len(test_ids))
         loss_func = torch.nn.CrossEntropyLoss()
-        for i, (imgs, _, labels) in enumerate(dl, 0):
-            imgs = imgs.to(DEVICE)
+        for i, batch in enumerate(dl, 0):
+            imgs = batch["image"].to(DEVICE)
             out = self.model(imgs).cpu().detach().numpy()
             pred[i*bs : i*bs+imgs.shape[0]] = out.argmax(axis=1)
         return pred.astype(int)

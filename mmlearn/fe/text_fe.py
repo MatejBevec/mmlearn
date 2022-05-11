@@ -37,9 +37,9 @@ def _extract_text_features(fe, dataset, ids=None):
     features_list = []
     labels_list = []
     dl = DataLoader(dataset, batch_size=TEXT_FE_BATCH_SIZE, sampler=ids)
-    for i, (_, texts, labels) in enumerate(dl, 0):
-        features_list.append(fe(texts))
-        labels_list.append(labels)
+    for i, batch in enumerate(dl, 0):
+        features_list.append(fe(batch["text"]))
+        labels_list.append(batch["target"])
     features = np.concatenate(features_list, axis=0)
     labels = np.concatenate(labels_list, axis=0)
     return features, labels

@@ -39,6 +39,14 @@ def load_text(path):
         text = f.read()
     return text
 
+def load_audio(path):
+    #TODO
+    pass
+
+def load_video(path):
+    #TODO
+    pass
+
 def _has_dataset(root):
     if not os.path.isdir(root):
         return False
@@ -46,6 +54,22 @@ def _has_dataset(root):
         return False
     return True
 
+def _is_data_directory(dir, ds):
+    if not os.path.isdir(dir):
+        return False
+    else:
+        fns = sorted(list(os.listdir(dir)))
+        a = sorted([fn.rsplit(".")[0] for fn in os.listdir(dir)])
+        b = sorted(ds.df.iloc[:, 0])
+        if not (a == b):
+            log_progress(f"WARNING: path {dir} is a directory but its contents\
+                            don't align with target.tsv. Skipping this modality.")
+            return False
+        elif not all(fn.rsplit(".")[1] == fns[0].rsplit(".")[1] for fn in fns):
+            log_progress(f"WARNING: path {dir} contains files\
+                            the file extensions don't match. Skipping this modality.")
+            return False
+        return True
 
 # BASE CLASSES
 
@@ -56,10 +80,13 @@ class MultimodalDataset(Dataset):
 
         Args:
             dir: A directory that must include:
-                * ./image directory containing one .jpg file per training example
-                * ./texts directory containing one .txt file per example, with matching filenames
                 * ./target.tsv file with filenames in col = 0 and target classes in col >= 1
-            img_size: Image height and width after loading.
+                And a subset of the following:
+                * ./images directory containing one .jpg or .png file per training example with filenames from target.tsv
+                * ./texts directory containing one .txt file per example
+                * ./audio directory containing one .wav or .mp3 file per example
+                * ./video directory containing one .mp4 file per example
+                The dataset object will output data in modalities for which a directory is provided.
             col: Target class column in target.tsv.
             frac: Choose < 1 to randomly sub-sample loaded dataset.
             shuffle: Randomly shuffle training examples.
@@ -73,13 +100,20 @@ class MultimodalDataset(Dataset):
             self.df = self.df.sample(frac=frac)
         if shuffle:
             self.shuffle()
-        self.img_dir = os.path.join(dir, "images")
-        self.text_dir = os.path.join(dir, "texts")
-        self.h = img_size
 
-        # self.norm = tf.Normalize(mean=[0.485, 0.456, 0.406],
-        #                         std=[0.229, 0.224, 0.225])
-        # self.transform = tf.Compose([tf.Resize((self.h, self.h)), tf.ToTensor(), self.norm])
+        self.data_dirs, self.exts, self.modalities = {}, {}, {}
+        for modality in ["images", "texts", "audio", "video"]:
+            data_dir = os.path.join(dir, modality)
+            if _is_data_directory(data_dir, self):
+                self.data_dirs[modality] = data_dir
+                self.modalities[modality] = True
+                self.exts[modality] = "." + list(os.listdir(data_dir))[0].rsplit(".")[1]
+            else:
+                self.modalities[modality] = False
+
+        # self.img_dir = os.path.join(dir, "images")
+        # self.text_dir = os.path.join(dir, "texts")
+        self.h = img_size
 
         self.classes, self.targets = np.unique(self.df.iloc[:,col], return_inverse=True)
         self.n_cls = len(self.classes)
@@ -90,15 +124,39 @@ class MultimodalDataset(Dataset):
 
     def __getitem__(self, i):
         id = self.df.iloc[i, 0]
-        # pil_img = Image.open(os.path.join(self.img_dir, id + ".jpg")).convert("RGB")
-        # img = self.transform(pil_img)
-        img = load_image(os.path.join(self.img_dir, id + ".jpg"), h=self.h, w=self.h)
-        text = load_text(os.path.join(self.text_dir, id + ".txt"))
-        target = self.targets[i] # targets are indices, self.classes[target] to get strings
+        example = {}
 
-        return img, text, target
+        if self.modalities["images"]:
+            img = load_image(os.path.join(self.data_dirs["images"], id + self.exts["images"]),
+                             h=self.h, w=self.h)
+            example["image"] = img
+        if self.modalities["texts"]:
+            text = load_text(os.path.join(self.data_dirs["texts"], id + self.exts["texts"]))
+            example["text"] = text
+        if self.modalities["audio"]:
+            audio = load_audio(os.path.join(self.data_dirs["audio"], id + self.exts["audio"]))
+            example["audio"] = audio
+        if self.modalities["video"]:
+            video = load_video(os.path.join(self.data_dirs["video"], id + self.exts["video"]))
+            example["video"] = video
+
+        target = self.targets[i] # targets are indices, self.classes[target] to get the string
+        example["target"] = target
+        return example
+
+    def toggle_modalities(self, dict):
+        """Enable or disable modalities to return. Use to prevent loading unused data.
+        
+        Args:
+            dict: A dictionary, of form {"modality": True/False}
+        """
+        for modality in dict:
+            if dict[modality] is True and not self.data_dirs[modality]:
+                log_progress(f"WARNING: Cannot enable a modality ({modality}) that was not provided.")
+            self.modalities[modality] = dict[modality]
 
     def shuffle(self, seed=None):
+        """Randomly shuffle the dataset in place."""
         perm = np.random.permutation(len(self))
         self.df = self.df.iloc[perm, :]
         self.targets = self.targets[perm]
@@ -119,7 +177,7 @@ class MultimodalDataset(Dataset):
 
         for i in selection:
             id = self.df.iloc[i, 0]
-            text = load_text(os.path.join(self.text_dir, id + ".txt"))
+            text = load_text(os.path.join(self.data_dirs["texts"], id + ".txt"))
             texts.append(text)
             targets.append(self.targets[i])
         return np.array(texts), np.array(targets)
@@ -168,7 +226,7 @@ class TastyRecipes(MultimodalDataset):
     def __init__(self, name="tasty-recipes"):
         source = "http://dl.dropboxusercontent.com/s/ems0r9jdkbkamtz/tasty-recipes.zip"
         if not _has_dataset(os.path.join(DATA_DIR, name)):
-            _download_dataset(source, name)        
+            _download_dataset(source, name)  
         super(TastyRecipes, self).__init__(os.path.join(DATA_DIR, name))
 
 
