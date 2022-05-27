@@ -47,7 +47,8 @@ def save_results(results, save_dir=RESULTS_DIR):
         results[mname].to_csv(sep="\t", index=True, header=True)
 
 
-def holdout(dataset, model, metrics=METRICS, ratio=0.7, shuffle=True, dataframe=False, random_state=42):
+def holdout(dataset, model, metrics=METRICS, ratio=0.7, shuffle=True,
+            dataframe=False, random_state=42, verbose=True):
     """Train and evaluate given model on given dataset with a holdout test set.
 
     Args:
@@ -64,13 +65,13 @@ def holdout(dataset, model, metrics=METRICS, ratio=0.7, shuffle=True, dataframe=
         A dict of scores of form {'metric_name': number, ...}.
     """
 
-    log_progress(f"Evaluating (holdout) {type(model).__name__} model on {type(dataset).__name__} dataset...")
+    log_progress(f"Evaluating (holdout) {type(model).__name__} model on {type(dataset).__name__} dataset...", verbose=verbose)
     split = int(len(dataset) * ratio)
     ids = np.random.RandomState(seed=random_state).permutation(len(dataset)) if shuffle else np.arange(len(dataset))
     train_ids, test_ids = ids[:split], ids[split:]
 
     targets, pred = _get_predictions(dataset, model, train_ids, test_ids)
-    log_progress(f"Computing metric scores...")
+    log_progress(f"Computing metric scores...", verbose=verbose)
     results = {mname:metrics[mname](targets, pred) for mname in metrics}
 
     if dataframe:
@@ -78,7 +79,8 @@ def holdout(dataset, model, metrics=METRICS, ratio=0.7, shuffle=True, dataframe=
 
     return results
 
-def holdout_many(datasets, models, metrics=METRICS, ratio=0.7, shuffle=True, dataframe=True, random_state=42):
+def holdout_many(datasets, models, metrics=METRICS, ratio=0.7, shuffle=True,
+                    dataframe=True, random_state=42, verbose=True):
     """Train and evaluate multiple models on multiple datasets with a holdout test set.
 
     Args:
@@ -93,7 +95,7 @@ def holdout_many(datasets, models, metrics=METRICS, ratio=0.7, shuffle=True, dat
     all_results = {mname: np.ndarray([len(models), len(datasets)]) for mname in metrics}
     for m, mdname in enumerate(models):
         for d, dname in enumerate(datasets):
-            results = holdout(datasets[dname], models[mdname], ratio=ratio, shuffle=shuffle)
+            results = holdout(datasets[dname], models[mdname], ratio=ratio, shuffle=shuffle, verbose=verbose)
             for mname in metrics:
                 all_results[mname][m, d] = results[mname]
 
@@ -106,7 +108,8 @@ def holdout_many(datasets, models, metrics=METRICS, ratio=0.7, shuffle=True, dat
     return all_results
     
 
-def cross_validate(dataset, model, metrics=METRICS, folds=4, shuffle=True, dataframe=False, random_state=42):
+def cross_validate(dataset, model, metrics=METRICS, folds=4, shuffle=True,
+                    dataframe=False, random_state=42, verbose=True):
     """Train and evaluate given model on given dataset with k-fold cross-validation.
 
     Args:
@@ -123,7 +126,7 @@ def cross_validate(dataset, model, metrics=METRICS, folds=4, shuffle=True, dataf
         A dict of scores of form {'metric_name': number, ...}.
     """
 
-    log_progress(f"Cross-validating {type(model).__name__} model on {type(dataset).__name__} dataset...")
+    log_progress(f"Cross-validating {type(model).__name__} model on {type(dataset).__name__} dataset...", verbose=verbose)
     kfold = KFold(n_splits=folds, shuffle=shuffle, random_state=random_state)
     all_ids = np.arange(len(dataset))
     
@@ -134,7 +137,7 @@ def cross_validate(dataset, model, metrics=METRICS, folds=4, shuffle=True, dataf
 
         # TODO: check if retraining same model is ok
         targets, pred = _get_predictions(dataset, model, train_ids, test_ids)
-        log_progress(f"Computing metric scores...")
+        log_progress(f"Computing metric scores...", verbose=verbose)
         for mname in metrics:
             results[mname][i] = metrics[mname](targets, pred)
         #fold_results = {mname:metrics[mname](targets, pred) for mname in metrics}
@@ -146,7 +149,7 @@ def cross_validate(dataset, model, metrics=METRICS, folds=4, shuffle=True, dataf
     return avg_results
 
 def cross_validate_many(datasets, models, metrics=METRICS, folds=4, shuffle=True,
-                        dataframe=True, random_state=42):
+                        dataframe=True, random_state=42, verbose=True):
     """Train and evaluate multiple models on multiple datasets with cross-validation.
 
     Args:
@@ -162,7 +165,7 @@ def cross_validate_many(datasets, models, metrics=METRICS, folds=4, shuffle=True
     for m, mdname in enumerate(models):
         for d, dname in enumerate(datasets):
             results = cross_validate(datasets[dname], models[mdname], folds=folds,
-                                    shuffle=shuffle, random_state=random_state)
+                                    shuffle=shuffle, random_state=random_state, verbose=verbose)
             for mname in metrics:
                 all_results[mname][m, d] = results[mname]
 

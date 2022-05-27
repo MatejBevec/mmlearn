@@ -34,7 +34,7 @@ def prepare_input(dataset, ids):
     return dataset, ids
 
 
-def get_classifier(clf):
+def get_classifier(clf, verbose=False):
     """Returns one of the pre-configured sklearn-style classifiers.
         Used to parse the "clf" argument in ClsModel constructors when a shorthand string is provided.
 
@@ -52,11 +52,11 @@ def get_classifier(clf):
     """
 
     if clf == "svm_best":
-        clf = AutoLinearSVM()
+        clf = AutoLinearSVM(verbose=verbose)
     elif clf == "svm":
         clf = LinearSVC()
     elif clf == "lr_best":
-        clf = AutoLogisticRegression()
+        clf = AutoLogisticRegression(verbose=verbose)
     elif clf == "lr":
         clf = LogisticRegression()
     elif clf == "rf":
@@ -66,7 +66,7 @@ def get_classifier(clf):
     elif clf == "tpot":
         clf = tpot.TPOTClassifier(generations=5,
                             population_size=50,
-                            verbosity=2,
+                            verbosity=2 if verbose else 0,
                             random_state=42,
                             max_time_mins=120)
     elif not isinstance(clf, BaseEstimator):
@@ -129,9 +129,10 @@ def predict_torch_nn(model, dataset, test_ids=None):
 
 class AutoSkClf(BaseEstimator):
 
-    def __init__(self):
+    def __init__(self, verbose=False):
         self.param_sets = None # dicts of parameters
         self.models = None # instantiated sk estimators with such parameters
+        self.verbose = verbose
 
     def fit(self, X, y):
         split = int(len(y)*0.7)
@@ -142,10 +143,10 @@ class AutoSkClf(BaseEstimator):
             m.fit(tr_ft, tr_lbl)
             pred = m.predict(test_ft)
             score = sklearn.metrics.f1_score(test_lbl, pred, average="macro")
-            log_progress(f"{self.param_sets[i]}, score = {score:.3f}", color="white")
+            log_progress(f"{self.param_sets[i]}, score = {score:.3f}", color="white", verbose=self.verbose)
             scores.append(score)
         best = np.argmax(scores)
-        log_progress(f"Picked {self.param_sets[best]}")
+        log_progress(f"Picked {self.param_sets[best]}", verbose=self.verbose)
         self.model = self.models[best]
         self.model.fit(X, y)
 
@@ -154,17 +155,19 @@ class AutoSkClf(BaseEstimator):
 
 class AutoLinearSVM(AutoSkClf):
 
-    def __init__(self):
+    def __init__(self, verbose=False):
         C_range = [0.1, 0.5, 1, 5, 10, 20, 50, 100, 500]
         self.param_sets = [{"C": C} for C in C_range]
         self.models = [LinearSVC(C=C) for C in C_range]
+        self.verbose = verbose
 
 class AutoLogisticRegression(AutoSkClf):
 
-    def __init__(self):
+    def __init__(self, verbose=False):
         C_range = [0.1, 0.5, 1, 5, 10, 20, 50, 100, 500]
         self.param_sets = [{"C": C} for C in C_range]
         self.models = [LogisticRegression(C=C) for C in C_range]
+        self.verbose = verbose
 
 # BASE END-TO-END CLASSIFIERS
 
@@ -207,12 +210,13 @@ class ClsModel(ABC):
 class RandomClassifier(ClsModel):
     """Predicts random class for every test instance."""
 
-    def __init__(self, random_state=42):
+    def __init__(self, random_state=42, verbose=False):
         self.seed = random_state
+        self.verbose = verbose
     
     def train(self, dataset, train_ids=None):
         dataset, train_ids = prepare_input(dataset, train_ids)
-        log_progress(f"Training {type(self).__name__} model...")
+        log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
         self.dataset = dataset
         self.n_cls = len(dataset.classes)
     
@@ -224,12 +228,12 @@ class RandomClassifier(ClsModel):
 class MajorityClassifier(ClsModel):
     """Predicts the most frequent class in training set for every test instance."""
 
-    def __init__(self):
-        pass
+    def __init__(self, verbose=False):
+        self.verbose = verbose
 
     def train(self, dataset, train_ids=None):
         dataset, train_ids = prepare_input(dataset, train_ids)
-        log_progress(f"Training {type(self).__name__} model...")
+        log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
         _, labels = dataset.get_texts()
         self.mode_cls = scipy.stats.mode(labels[train_ids])[0]
 

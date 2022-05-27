@@ -22,9 +22,9 @@
   - ~~eval-all~~ ✓
 - ~~basic mm models: late fusion, early fusion with concat~~ ✓
 - ~~extend MultimodalDataset interface for audio and video~~ ✓
+- ~~create dataset from torch dataset (constructor or factory?)~~ ✓
+- ~~verbose mode~~ ✓
 - research types of early fusion
-- create dataset from torch dataset (constructor or factory?)
-- verbose mode
 - models should return probabilites also
 - sound feature extractors
 - video feature extractors
@@ -50,6 +50,7 @@
 - TODO: should the interface dtype be Ndarray instead of Tensor?
 - TODO: exact scikit model interface?
 - TODO: is get_texts() slow?
+- TODO: a more elegant way to do verbosity?
 
 ## Style Guide
   - import default modules, external libraries, internal modules in this order

@@ -23,7 +23,7 @@ USE_CUDA = False
 # def cuda_available():
 #     return cuda.is_available()
 
-def log_progress(msg, color="yellow"):
+def log_progress(msg, color="yellow", level="info", verbose=False):
     """Log activity messages to INFO logger"""
     
     colors = {
@@ -33,4 +33,9 @@ def log_progress(msg, color="yellow"):
         "blue": "\u001b[32m",
         "white": "\u001b[0m"
     }
-    logging.info(f"{colors[color]}{msg}\u001b[0m")
+    levels = {"error": 40, "warning": 30, "info": 20, "debug": 10}
+
+    msg = f"{colors[color]}{msg}\u001b[0m"
+    logging.log(levels[level], msg)
+    if verbose and logging.root.level > levels[level]:
+        print(msg) # Not sure if this is the correct way

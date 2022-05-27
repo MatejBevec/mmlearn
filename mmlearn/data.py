@@ -63,12 +63,12 @@ def _is_data_directory(dir, ds):
         a = sorted([fn.rsplit(".")[0] for fn in os.listdir(dir)])
         b = sorted(ds.df.iloc[:, 0])
         if not (a == b):
-            log_progress(f"WARNING: path {dir} is a directory but its contents\
-                            don't align with target.tsv. Skipping this modality.")
+            log_progress(f"Path {dir} is a directory but its contents\
+                            don't align with target.tsv. Skipping this modality.", level="warning")
             return False
         elif not all(fn.rsplit(".")[1] == fns[0].rsplit(".")[1] for fn in fns):
-            log_progress(f"WARNING: path {dir} contains files\
-                            the file extensions don't match. Skipping this modality.")
+            log_progress(f"Path {dir} contains files\
+                            the file extensions don't match. Skipping this modality.", level="warning")
             return False
         return True
 
@@ -76,11 +76,11 @@ def _is_torch_multimodal_dataset(dataset):
     has_len = callable(getattr(dataset, "__len__"))
     has_getitem = callable(getattr(dataset, "__getitem__"))
     if not (has_len and has_getitem):
-        log_progress(f"Provided object is not a torch Dataset.")
+        log_progress(f"Provided object is not a torch Dataset.", level="warning")
         return False
     example = dataset[0]
     if not(type(example) == dict and "target" in example):
-        log_progress(f"Provided dataset does not return expected data.")
+        log_progress(f"Provided dataset does not return expected data.", level="warning")
         return False
     valid_dtypes = True
     for mod in example:
@@ -89,7 +89,7 @@ def _is_torch_multimodal_dataset(dataset):
         if mod == "text":
             valid_dtype = valid_dtypes and type(example[mod]) == str
     if not valid_dtypes:
-        log_progress(f"Provided dataset does not return expected data.")
+        log_progress(f"Provided dataset does not return expected data.", level="warning")
         return False
     return True
 
@@ -98,7 +98,7 @@ def _is_torch_multimodal_dataset(dataset):
 
 class MultimodalDataset(Dataset):
 
-    def __init__(self, dir, img_size=400, col=1, frac=None, shuffle=False):
+    def __init__(self, dir, img_size=400, col=1, frac=None, shuffle=False, verbose=True):
         """Create a multimodal dataset object from directory.
 
         Args:
@@ -124,7 +124,7 @@ class MultimodalDataset(Dataset):
         if shuffle:
             self.shuffle()
 
-        self.data_dirs, self.exts, self.av_mods = {}, {}, {}, 
+        self.data_dirs, self.exts, self.av_mods = {}, {}, {}
         for modality in ["image", "text", "audio", "video"]:
             data_dir = os.path.join(dir, modality)
             if _is_data_directory(data_dir, self):
@@ -174,7 +174,7 @@ class MultimodalDataset(Dataset):
         """
         for modality in dict:
             if dict[modality] is True and not self.av_mods[modality]:
-                log_progress(f"WARNING: Cannot enable a modality ({modality}) that was not provided.")
+                log_progress(f"Cannot enable a modality ({modality}) that was not provided.", level="warning")
             self.mods[modality] = dict[modality]
 
     def shuffle(self, seed=None):
@@ -296,15 +296,15 @@ def from_torch_dataset(torch_dataset, img_size=400, frac=None, shuffle=False):
 # INCLUDED MULTIMODAL DATASETS
 
 # TODO: change download source from dropbox
-def _download_dataset(source, name):
-    log_progress(f"Downloading dataset to {DATA_DIR}/{name}...")
+def _download_dataset(source, name, verbose=True):
+    log_progress(f"Downloading dataset to {DATA_DIR}/{name}...", verbose=verbose)
 
     ds_dir = os.path.join(DATA_DIR, name)
     if not os.path.isdir(ds_dir):
         os.makedirs(ds_dir)
     zip_path = os.path.join(ds_dir, "data.zip")
 
-    gdown.download(source, zip_path, quiet=False)
+    gdown.download(source, zip_path, quiet=not verbose)
     #urllib.request.urlretrieve(source, zip_path)
     zipfile.ZipFile(zip_path).extractall(ds_dir)
     os.remove(zip_path)

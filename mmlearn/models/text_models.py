@@ -35,7 +35,7 @@ from mmlearn.util import log_progress, DEVICE, USE_CUDA
 
 class TextSkClassifier(ClsModel):
 
-    def __init__(self, fe="default", clf="svm_best"):
+    def __init__(self, fe="default", clf="svm_best", verbose=False):
         """Word and character n-gram features + sklearn classifier.
         
         Args:
@@ -43,13 +43,14 @@ class TextSkClassifier(ClsModel):
             clf: The classifier to use. 'svm', 'lr', 'rf' or an instance of any sklearn classifer.
         """
         
-        self.fe = textfe.NGrams() if fe is "default" else fe
-        self.model = get_classifier(clf)
+        self.fe = textfe.NGrams() if fe == "default" else fe
+        self.model = get_classifier(clf, verbose=verbose)
+        self.verbose = verbose
 
     def train(self, dataset, train_ids):
         dataset, train_ids = prepare_input(dataset, train_ids)
 
-        log_progress(f"Training {type(self).__name__} model...")
+        log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
         texts, labels = dataset.get_texts(train_ids)
 
         for i, tid in enumerate(train_ids):
@@ -72,7 +73,7 @@ class BERT(ClsModel):
     Implemented using the Simple Transformers library.
     """
 
-    def __init__(self, weights='bert-base-uncased', epochs=20):
+    def __init__(self, weights='bert-base-uncased', epochs=20, verbose=False):
         """Initialize BERT model.
 
         Args:
@@ -82,10 +83,11 @@ class BERT(ClsModel):
         """
         self.weights = weights
         self.epochs = epochs
+        self.verbose = verbose
         
     def train(self, dataset, train_ids):
         dataset, train_ids = prepare_input(dataset, train_ids)
-        log_progress(f"Training {type(self).__name__} model...")
+        log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
 
         self.dataset = dataset
         texts, labels = dataset.get_texts(train_ids)
@@ -121,12 +123,13 @@ class TPOT(ClsModel):
     AutoML tool that automatically evolves scikit-learn pipelines based on tree ensemble learners.
     """
 
-    def __init__(self, random_state=42):
+    def __init__(self, random_state=42, verbose=False):
         self.seed = random_state
+        self.verbose = verbose
 
     def train(self, dataset, train_ids):
         dataset, train_ids = prepare_input(dataset, train_ids)
-        log_progress(f"Training {type(self).__name__} model...")
+        log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
 
         self.dataset = dataset
         texts, labels = dataset.get_texts(train_ids)

@@ -1,5 +1,6 @@
 import os
 import sys
+import tqdm
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -22,7 +23,7 @@ from mmlearn.util import log_progress, DEVICE, REG_PARAM_RANGE
 
 class ImageNeuralClassifier():
 
-    def __init__(self, fe="default"):
+    def __init__(self, fe="default", verbose=False):
         """Image feature extractor + a pytorch NN classifier.
             The classifier is a 2-layer fully-connected network with ReLU act., Adam optim. and cross-entropy loss. 
         
@@ -30,11 +31,12 @@ class ImageNeuralClassifier():
             fe: A feature extractor model from 'fe.image'. Default is MobileNetV3.
         """
         
-        self.fe = imgfe.MobileNetV3() if fe is "default" else fe
+        self.fe = imgfe.MobileNetV3() if fe == "default" else fe
+        self.verbose = verbose
 
     def train(self, dataset, train_ids):
         dataset, train_ids = prepare_input(dataset, train_ids)
-        log_progress(f"Training {type(self.fe).__name__} fe + NN classifier model...")
+        log_progress(f"Training {type(self.fe).__name__} fe + NN classifier model...", verbose=self.verbose)
 
         features, labels = self.fe.extract_all(dataset, train_ids)
         ft_dataset = TensorDataset(torch.from_numpy(features), torch.from_numpy(labels))
@@ -61,7 +63,7 @@ class ImageNeuralClassifier():
 
 class ImageSkClassifier():
 
-    def __init__(self, fe="default", clf="svm_best", best_reg=True):
+    def __init__(self, fe="default", clf="svm_best", best_reg=True, verbose=False):
         """Image feature extractor + a scikit-learn classifier.
         
         Args:
@@ -69,12 +71,14 @@ class ImageSkClassifier():
             clf: The classifier to use. 'svm', 'lr', 'rf' or an instance of any sklearn classifer.
         """
         
-        self.fe = imgfe.MobileNetV3() if fe is "default" else fe
-        self.model = get_classifier(clf)
+        self.fe = imgfe.MobileNetV3() if fe == "default" else fe
+        self.model = get_classifier(clf, verbose=verbose)
+        self.verbose = verbose
 
     def train(self, dataset, train_ids):
         dataset, train_ids = prepare_input(dataset, train_ids)
-        log_progress(f"Training {type(self.fe).__name__} + {type(self.model).__name__} classifier model...")
+        log_progress(f"Training {type(self.fe).__name__} + {type(self.model).__name__} classifier model...",
+                        verbose=self.verbose)
 
         features, labels = self.fe.extract_all(dataset, train_ids)
 
@@ -88,7 +92,7 @@ class ImageSkClassifier():
 
 class TunedMobileNetV3(ClsModel):
 
-    def __init__(self, epochs=20):
+    def __init__(self, epochs=20, verbose=False):
         """Fine-tuned pretrained MobileNet V3 Large image classification model.
             Final (classifier) layer is replaced to fit output dimension and the whole network is fine-tuned on given data.
 
@@ -97,6 +101,7 @@ class TunedMobileNetV3(ClsModel):
         """
         self.model = models.mobilenet_v3_large(pretrained=True)
         self.epochs = epochs
+        self.verbose = verbose
     
     def train(self, dataset, train_ids):
         self.n_cls = len(dataset.classes)
@@ -113,7 +118,7 @@ class TunedMobileNetV3(ClsModel):
 
         for epoch in range(self.epochs):
             batch_loss = 0
-            log_progress(f"Training epoch {epoch}/{self.epochs}...")
+            log_progress(f"Training epoch {epoch}/{self.epochs}...", verbose=self.verbose)
 
             for i,p in enumerate(self.model.features.parameters()):
                 #Each epoch we are going to unfreeze 2 parameters, the weights and bias of a layer
@@ -121,6 +126,7 @@ class TunedMobileNetV3(ClsModel):
                     #Track the gradient for the appropriate layers
                     p.requires_grad = True
 
+            pbar = tqdm(total=len(dl), disable=not self.verbose)
             for i, batch in enumerate(dl, 0):
                 imgs, labels = batch["image"], batch["target"]
                 imgs = imgs.to(DEVICE)
@@ -132,6 +138,8 @@ class TunedMobileNetV3(ClsModel):
                 optimizer.step()
                 batch_loss += loss
                 if i%10 == 0:
+                    pbar.update(10)
+                    pbar.set_description(f"Loss = {batch_loss/10}, batches done")
                     log_progress(f"{i} batches done. Loss = {batch_loss/10}")
                     batch_loss = 0
 
