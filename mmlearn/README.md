@@ -47,6 +47,9 @@
   - one dataset
 - TODO: JSON file for settings
 - TODO: support regression?
+- TODO: should the interface dtype be Ndarray instead of Tensor?
+- TODO: exact scikit model interface?
+- TODO: is get_texts() slow?
 
 ## Style Guide
   - import default modules, external libraries, internal modules in this order

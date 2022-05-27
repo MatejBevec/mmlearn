@@ -1,11 +1,12 @@
 # SCRATCH PAPER FOR TESTING MODULES
 
 import os, sys
+sys.path.insert(0, ".")
 import numpy as np
 import torch
 import logging
 
-from torch.utils.data import DataLoader
+from torch.utils.data import Dataset, DataLoader
 from sklearn.metrics import accuracy_score
 
 from mmlearn import data
@@ -16,6 +17,21 @@ from mmlearn import eval
 
 logging.basicConfig(level=logging.INFO)
 
+class TestDataset(Dataset):
+
+    def __init__(self):
+        n = 10
+        self.texts = ["hello", "world", "this", "is", "a", "test", "of", "the", "new", "dataset", "feature"]
+        self.imgs = [torch.rand(800,200) for i in range(len(self.texts))]
+        self.targets = [torch.randint(0,5, (1,)).item() for i in range(len(self.texts))]
+        pass
+
+    def __len__(self):
+        return len(self.targets)
+
+    def __getitem__(self, i):
+        return {"image": self.imgs[i], "text": self.texts[i], "target": self.targets[i]}
+
 if __name__ == "__main__":
     
     # MULTIMODAL DATASETS
@@ -25,10 +41,10 @@ if __name__ == "__main__":
     dataset2 = data.Fauxtography()
     print("fx loaded")
 
-    dl = DataLoader(dataset, batch_size=4, shuffle=True)
-    #imgs, texts, targets = next(iter(dl))
-    batch = next(iter(dl))
-    print(batch)
+    # dl = DataLoader(dataset, batch_size=4, shuffle=True)
+    # # #imgs, texts, targets = next(iter(dl))
+    # batch = next(iter(dl))
+    # print(batch)
 
     # USE FEATURE EXTRACTORS SEPARATELY
 
@@ -60,12 +76,12 @@ if __name__ == "__main__":
     model= base_models.MajorityClassifier()
     model2 = text_models.TextSkClassifier(fe=text_fe.NGrams(), clf="svm_best")
     model3 = image_models.ImageSkClassifier()
-    #model3 = text.TextSkClassifier(fe=fe.text.SentenceBERT(), clf="svm_best")
+    # #model3 = text.TextSkClassifier(fe=fe.text.SentenceBERT(), clf="svm_best")
     all_models = {"majority": model, "ngrams_svm": model2, "mobilenet_svm": model3}
     all_ds = {"tasty": dataset, "faux": dataset2}
 
-    # print(eval.holdout(dataset, model2, dataframe=True))
-    # print(eval.cross_validate(dataset, model2, dataframe=True))
+    # # print(eval.holdout(dataset, model2, dataframe=True))
+    # # print(eval.cross_validate(dataset, model2, dataframe=True))
 
     results = eval.holdout_many(all_ds, all_models)
     for metric in results:
