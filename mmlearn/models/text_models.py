@@ -27,7 +27,7 @@ from simpletransformers.classification import ClassificationModel
 from tpot import TPOTClassifier
 from sentence_transformers import SentenceTransformer
 
-from mmlearn.models.base_models import ClsModel, prepare_input, get_classifier
+from mmlearn.models.base_models import ClsModel, prepare_input, get_classifier, check_predicts_proba
 from mmlearn.fe import text_fe as textfe
 from mmlearn.util import log_progress, DEVICE, USE_CUDA
 
@@ -65,6 +65,12 @@ class TextSkClassifier(ClsModel):
         texts, labels = dataset.get_texts(test_ids)
         return self.model.predict(self.fe(texts, train=False))
 
+    def predict_proba(self, dataset, test_ids):
+        datset, test_ids = prepare_input(dataset, test_ids)
+        texts, labels = dataset.get_texts(test_ids)
+        check_predicts_proba(self.model)
+        return self.model.predict_proba(self.fe(texts, train=False))
+
 
 class BERT(ClsModel):
     """A fine-tuned BERT transformer model in classifier configuration. 
@@ -83,6 +89,7 @@ class BERT(ClsModel):
         """
         self.weights = weights
         self.epochs = epochs
+        self.modalities = ["text"]
         self.verbose = verbose
         
     def train(self, dataset, train_ids):
@@ -108,13 +115,19 @@ class BERT(ClsModel):
                                     args=model_args,
                                     use_cuda=USE_CUDA)
 
-        self.model.train_model(train_df)
+        self.model.train_model(train_df, verbose=self.verbose)
 
-    def predict(self, dataset, test_ids):
+    def _predict(self, dataset, test_ids):
         dataset, test_ids = prepare_input(dataset, test_ids)
         texts, _ = dataset.get_texts(test_ids)
         pred, raw_outputs = self.model.predict(list(texts))
-        return pred
+        return pred, scipy.special.softmax(np.array(raw_outputs), axis=1)
+
+    def predict(self, dataset, test_ids):
+        return self._predict(dataset, test_ids)[0]
+
+    def predict_proba(self, dataset, test_ids):
+        return self._predict(dataset, test_ids)[1]
 
 
 class TPOT(ClsModel):
@@ -125,6 +138,7 @@ class TPOT(ClsModel):
 
     def __init__(self, random_state=42, verbose=False):
         self.seed = random_state
+        self.modalities = ["text"]
         self.verbose = verbose
 
     def train(self, dataset, train_ids):
@@ -153,3 +167,9 @@ class TPOT(ClsModel):
         dataset, test_ids = prepare_input(dataset, test_ids)
         texts, labels = dataset.get_texts(test_ids)
         return self.model.predict(texts)
+
+    def predict_proba(self, test_ids):
+        dataset, test_ids = prepare_input(dataset, test_ids)
+        texts, labels = dataset.get_texts(test_ids)
+        check_predicts_proba(self.model)
+        return self.model.predict_proba(texts)

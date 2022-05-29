@@ -1,9 +1,9 @@
 import os
 import sys
-import tqdm
 from abc import ABC, abstractmethod
 
 import numpy as np
+from tqdm import tqdm
 import torch
 import torch.nn as nn
 import torchvision.transforms as tf
@@ -15,8 +15,9 @@ import sklearn
 from sklearn.svm import LinearSVC
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestClassifier
+import scipy.special
 
-from mmlearn.models.base_models import ClsModel, prepare_input, get_classifier
+from mmlearn.models.base_models import ClsModel, prepare_input, check_predicts_proba, get_classifier
 from mmlearn.models import base_models
 from mmlearn.fe import image_fe as imgfe
 from mmlearn.util import log_progress, DEVICE, REG_PARAM_RANGE
@@ -32,6 +33,7 @@ class ImageNeuralClassifier():
         """
         
         self.fe = imgfe.MobileNetV3() if fe == "default" else fe
+        self.modalities = ["image"]
         self.verbose = verbose
 
     def train(self, dataset, train_ids):
@@ -53,12 +55,17 @@ class ImageNeuralClassifier():
 
         base_models.train_torch_nn(self.model, ft_dataset, loss_fn, optim, lr=lr)
 
-
-    def predict(self, dataset, test_ids):
+    def _predict(self, dataset, test_ids):
         dataset, test_ids = prepare_input(dataset, test_ids)
         features, labels = self.fe.extract_all(dataset, test_ids)
         ft_dataset = TensorDataset(torch.from_numpy(features), torch.from_numpy(labels))
         return base_models.predict_torch_nn(self.model, ft_dataset)
+
+    def predict(self, dataset, test_ids):
+        return self._predict(dataset,test_ids)[0]
+
+    def predict_proba(self, dataset, test_ids):
+        return self._predict(dataset, test_ids)[1]
 
 
 class ImageSkClassifier():
@@ -73,6 +80,7 @@ class ImageSkClassifier():
         
         self.fe = imgfe.MobileNetV3() if fe == "default" else fe
         self.model = get_classifier(clf, verbose=verbose)
+        self.modalities = ["image"]
         self.verbose = verbose
 
     def train(self, dataset, train_ids):
@@ -89,6 +97,12 @@ class ImageSkClassifier():
         features, labels = self.fe.extract_all(dataset, test_ids)
         return self.model.predict(features)
 
+    def predict_proba(self, dataset, test_ids):
+        dataset, test_ids = prepare_input(dataset, test_ids)
+        features, labels = self.fe.extract_all(dataset, test_ids)
+        check_predicts_proba(self.model)
+        return self.model.predict_proba(features)
+
 
 class TunedMobileNetV3(ClsModel):
 
@@ -101,6 +115,7 @@ class TunedMobileNetV3(ClsModel):
         """
         self.model = models.mobilenet_v3_large(pretrained=True)
         self.epochs = epochs
+        self.modalities = ["image"]
         self.verbose = verbose
     
     def train(self, dataset, train_ids):
@@ -143,14 +158,22 @@ class TunedMobileNetV3(ClsModel):
                     log_progress(f"{i} batches done. Loss = {batch_loss/10}")
                     batch_loss = 0
 
-    def predict(self, dataset, test_ids):
+    def _predict(self, dataset, test_ids):
         self.model.eval()
         bs = 64
         dl = DataLoader(dataset, batch_size=bs, sampler=test_ids)
         pred = np.ndarray(len(test_ids))
+        prob = np.ndarray((len(test_ids), len(dataset.classes)))
         loss_func = torch.nn.CrossEntropyLoss()
         for i, batch in enumerate(dl, 0):
             imgs = batch["image"].to(DEVICE)
             out = self.model(imgs).cpu().detach().numpy()
             pred[i*bs : i*bs+imgs.shape[0]] = out.argmax(axis=1)
-        return pred.astype(int)
+            prob[i*bs : i*bs+imgs.shape[0], :] = out
+        return pred.astype(int), scipy.special.softmax(prob, axis=1)
+
+    def predict(self, dataset, test_ids):
+        return self._predict(dataset, test_ids)[0]
+
+    def predict_proba(self, dataset, test_ids):
+        return self._predict(dataset, test_ids)[1]

@@ -25,7 +25,7 @@ from simpletransformers.classification import ClassificationModel
 from tpot import TPOTClassifier
 from sentence_transformers import SentenceTransformer
 
-from mmlearn.models.base_models import ClsModel, prepare_input, get_classifier
+from mmlearn.models.base_models import ClsModel, check_predicts_proba, prepare_input, get_classifier
 from mmlearn.fe import text_fe as textfe
 from mmlearn.fe import image_fe as imgfe
 from mmlearn.models import text_models
@@ -35,9 +35,7 @@ from mmlearn.util import log_progress, DEVICE, USE_CUDA, REG_PARAM_RANGE
 
 class LateFusion(ClsModel):
 
-    def __init__(self, image_model="default",
-                        text_model="default",
-                        combine="max"):
+    def __init__(self, image_model="default", text_model="default", combine="max", verbose=False):
         """
         Multimodal late fusion model. Combine prediction of an image model and a text model.
 
@@ -46,6 +44,9 @@ class LateFusion(ClsModel):
             text_model: A text classifier from models.text. Default is TextSkClassifier.
             combine: Method for combining predictions. "max", "sum", or "stack".
         """
+
+        self.modalities = ["image", "text"]
+        self.verbose = verbose
 
         self.image_model = image_models.ImageSkClassifier() if image_model is "default" else image_model
         self.text_model = text_models.TextSkClassifier(clf="lr") if text_model is "default" else text_model
@@ -68,11 +69,14 @@ class LateFusion(ClsModel):
         # TODO: All model.model-s must have a predict_proba option?
         # TODO: Combine predictions
         pass
+
+    def predict_proba(self, dataset, test_ids):
+        pass
  
 
 class NaiveEarlyFusion(ClsModel):
 
-    def __init__(self, image_fe="default", text_fe="default", clf="svm"):
+    def __init__(self, image_fe="default", text_fe="default", clf="svm", verbose=False):
         """Naive multimodal early fusion model.
             Image and text features are extracted, concatenated and fed to a classifier.
 
@@ -83,24 +87,34 @@ class NaiveEarlyFusion(ClsModel):
                 See [todo] for list of shorthands.
         """
 
+        self.modalities = ["image", "text"]
+        self.verbose = verbose
+
         self.image_fe = imgfe.MobileNetV3() if image_fe is "default" else image_fe
         self.text_fe = textfe.SentenceBERT() if text_fe is "default" else text_fe
         self.model = get_classifier(clf)
+
+    def _extract_features(self, dataset, ids):
+        log_progress(f"Extracting features...", color="white", verbose=self.verbose)
+        image_ft, labels = self.image_fe.extract_all(dataset, ids)
+        text_ft, _ = self.text_fe.extract_all(dataset, ids)
+        features = np.concatenate([image_ft, text_ft], axis=1)
+        return features, labels
 
     def train(self, dataset, train_ids):
         dataset, train_ids = prepare_input(dataset, train_ids)
         log_progress(f"Training early fusion model: \
                     ({type(self.image_fe).__name__} + {type(self.text_fe).__name__} \
-                     -> {type(self.model).__name__})")
-
-        image_ft, labels = self.image_fe.extract_all(dataset, train_ids)
-        text_ft, _ = self.text_fe.extract_all(dataset, train_ids)
-        features = np.concatenate([image_ft, text_ft], axis=1)
-
+                     -> {type(self.model).__name__})", verbose=self.verbose)
+        
+        features, labels = self._extract_features(dataset, train_ids)
         self.model.fit(features, labels)
 
     def predict(self, dataset, test_ids):
-        dataset, test_ids = prepare_input(dataset, test_ids)
-        image_ft, _ = self.image_fe.extract_all(dataset, test_ids)
-        text_ft, _ = self.text_fe.extract_all(dataset, test_ids)
-        return self.model.predict(np.concatenate([image_ft, text_ft], axis=1))  
+        features, _ = self._extract_features(dataset, test_ids)
+        return self.model.predict(features)
+    
+    def predict_proba(self, dataset, test_ids):
+        features, _ = self._extract_features(dataset, test_ids)
+        check_predicts_proba(self.model)
+        return self.model.predict_proba(features)

@@ -1,11 +1,12 @@
 **/__pycache__
-mmlearn/runs
+runs
 data
-mmlearn/data
-mmlearn/data_source
-mmlearn/pers
-mmlearn/cache_dir
+data
+data_source
+pers
+cache_dir
 setupx.cfg
 pyprojectx.toml
 build
+outputs
 mmlearn.egg-info

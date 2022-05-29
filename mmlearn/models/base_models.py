@@ -5,7 +5,8 @@ import itertools
 
 import numpy as np
 import pandas as pd
-import scipy
+import scipy.special
+import scipy.stats
 from sklearn.svm import LinearSVC
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -13,7 +14,7 @@ from sklearn.base import BaseEstimator
 from sklearn.neural_network import MLPClassifier
 import tpot
 import sklearn.metrics
-import torch
+from torch.nn import functional
 from torch.utils.data import DataLoader, TensorDataset
 
 from mmlearn.data import MultimodalDataset
@@ -32,6 +33,14 @@ def prepare_input(dataset, ids):
     if ids is None:
         ids = np.arange(len(dataset))
     return dataset, ids
+
+def predicts_proba(model):
+    return callable(getattr(model, "predict_proba", None))
+
+def check_predicts_proba(model):
+    if not predicts_proba(model):
+            raise NotImplementedError(f"The chosen classifer ({type(model).__name__}) does not implement predict_proba.")
+    
 
 
 def get_classifier(clf, verbose=False):
@@ -54,11 +63,11 @@ def get_classifier(clf, verbose=False):
     if clf == "svm_best":
         clf = AutoLinearSVM(verbose=verbose)
     elif clf == "svm":
-        clf = LinearSVC()
+        clf = LinearSVC(max_iter=5000)
     elif clf == "lr_best":
         clf = AutoLogisticRegression(verbose=verbose)
     elif clf == "lr":
-        clf = LogisticRegression()
+        clf = LogisticRegression(max_iter=1000)
     elif clf == "rf":
         clf = RandomForestClassifier()
     elif clf == "nn":
@@ -103,11 +112,15 @@ def predict_torch_nn(model, dataset, test_ids=None):
     model = model.to(DEVICE).eval()
     dl = DataLoader(dataset, batch_size=PRED_BATCH_SIZE, sampler=test_ids)
     pred_list = []
+    prob_list = []
     for i, (features, labels) in enumerate(dl, 0):
         features = features.to(DEVICE)
         out = model(features).cpu().detach().numpy()
         pred_list.append(out.argmax(axis=1))
-    return np.concatenate(pred_list, axis=0).astype(int)
+        prob_list.append(out)
+    pred = np.concatenate(pred_list, axis=0).astype(int)
+    prob = scipy.special.softmax(np.concatenate(prob_list, axis=0), axis=1)
+    return pred, prob
 
 
 # HELPER SKLEARN-STYLE END CLASSIFIERS (after fe)
@@ -153,12 +166,16 @@ class AutoSkClf(BaseEstimator):
     def predict(self, X):
         return self.model.predict(X)
 
+    def predict_proba(self, X):
+        check_predicts_proba(self.model)
+        return self.model.predict_proba(X)
+
 class AutoLinearSVM(AutoSkClf):
 
     def __init__(self, verbose=False):
         C_range = [0.1, 0.5, 1, 5, 10, 20, 50, 100, 500]
         self.param_sets = [{"C": C} for C in C_range]
-        self.models = [LinearSVC(C=C) for C in C_range]
+        self.models = [LinearSVC(C=C, max_iter=5000) for C in C_range]
         self.verbose = verbose
 
 class AutoLogisticRegression(AutoSkClf):
@@ -166,7 +183,7 @@ class AutoLogisticRegression(AutoSkClf):
     def __init__(self, verbose=False):
         C_range = [0.1, 0.5, 1, 5, 10, 20, 50, 100, 500]
         self.param_sets = [{"C": C} for C in C_range]
-        self.models = [LogisticRegression(C=C) for C in C_range]
+        self.models = [LogisticRegression(C=C, max_iter=1000) for C in C_range]
         self.verbose = verbose
 
 # BASE END-TO-END CLASSIFIERS
@@ -176,8 +193,11 @@ class ClsModel(ABC):
     
     A common interface for all models - text-only, image-only and multimodal.
     Any ClsModel can be trained on any MultimodalDataset.
-    """
 
+    Attributes:
+        modalities: A list of strings denoting modalities which this model operates with.
+    """
+    
     @abstractmethod
     def __init__(self):
         """Initialize model with optional settings."""
@@ -236,7 +256,13 @@ class MajorityClassifier(ClsModel):
         log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
         _, labels = dataset.get_texts()
         self.mode_cls = scipy.stats.mode(labels[train_ids])[0]
+        self.classes, self.freqs = np.unique(labels[train_ids], return_counts=True)
+        self.proba = scipy.special.softmax(self.freqs)
 
     def predict(self, dataset, test_ids=None):
         dataset, test_ids = prepare_input(dataset, test_ids)
         return np.repeat(self.mode_cls, len(test_ids))
+
+    def predict_proba(self, dataset, test_ids=None):
+        dataset, test_ids = prepare_input(dataset, test_ids)
+        return np.tile(self.proba, (len(test_ids), 1))
