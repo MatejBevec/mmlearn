@@ -24,12 +24,14 @@
 - ~~extend MultimodalDataset interface for audio and video~~ ✓
 - ~~create dataset from torch dataset (constructor or factory?)~~ ✓
 - ~~verbose mode~~ ✓
+- ~~models should return probabilites also~~ ✓
+- ~~a multimodal dataset which includes audio~~ ✓
 - research types of early fusion
-- models should return probabilites also
-- sound feature extractors
+- sound feature extractors |
 - video feature extractors
 - more image models
 - docs from docstrings
+- a multimodal dataset which includes video
 
 
 ## Considerations
@@ -51,6 +53,8 @@
 - TODO: exact scikit model interface?
 - TODO: is get_texts() slow?
 - TODO: a more elegant way to do verbosity?
+- TODO: is it strange that feature extractor take Tensors on input and output Ndarrays?
+- TODO: using external libraries: how many dependencies is too many??? For example, OpenL3 installs    Tensorflow and more
 
 ## Style Guide
   - import default modules, external libraries, internal modules in this order

@@ -20,7 +20,7 @@ IMG_FE_BATCH_SIZE = 4   # Batch size when extracting features from images
 # HELPER FUNCTIONS
 def _check_input(x):
     if not (type(x) is torch.Tensor and len(x.shape) == 4):
-        raise TypeError("Input must be 3-dimensional Tensor.")
+        raise TypeError("Image input must be a 4-dimensional Tensor of shape (batches, channels, h, w).")
 
 def _extract_image_features(fe, dataset, ids=None):
     if not isinstance(dataset, MultimodalDataset):
@@ -62,6 +62,7 @@ class ImageExtractor(ABC):
         """Extracts image features (embeddings) for entire dataset."""
 
         return _extract_image_features(self, dataset, ids)
+
 
 class ResNet(ImageExtractor):
 

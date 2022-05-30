@@ -6,10 +6,13 @@ import urllib.request
 
 import numpy as np
 import pandas as pd
-import torchvision.transforms.functional as F
+import torch
 from torch.utils.data import Dataset
-from torch import Tensor
+from torchvision.transforms import functional as VF
 from PIL import Image
+from torchaudio import transforms as AT
+import torchaudio
+import librosa
 from sklearn.preprocessing import MultiLabelBinarizer
 import gdown
 
@@ -21,28 +24,117 @@ def load_image(path, h=400, w=400, transform=None):
     """Load an image into a normalized pytorch Tensor.
     
     Args:
+        path: The path to the image file. Accepted filetypes are: TODO
         h: Height of output Tensor.
         w: Width of output Tensor.
-        transform: A custom pytorch Transform to apply to image. If None, resize and normalize.
+        transform: An instantiated custom pytorch Transform to apply to the image.
+            The transform should match expected output type and shape.
+            If None, resize and normalize. 
+    
+    Returns:
+        A normalized 3D pytorch Tensor of size (channels, h, w).
     """
 
     pil_img = Image.open(path).convert("RGB")
     if transform:
         img = transform(img)
     else:
-        img = F.resize(pil_img, (h, w))
-        img = F.to_tensor(img)
-        img = F.normalize(img, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        img = VF.resize(pil_img, (h, w))
+        img = VF.to_tensor(img)
+        img = VF.normalize(img, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     return img
 
 def load_text(path):
+    """Load a text file into a string.
+    
+    Args:
+        path: The path to the text file.
+
+    Returns: A string.
+    """
+
     with open(path, "r", encoding="utf-8") as f:
         text = f.read()
     return text
 
-def load_audio(path):
-    #TODO
-    pass
+def _load_clip(clip_path):
+    #clip_path = os.path.join(clip_dir, name + "." + suffix)
+    #t1 = time.time()
+    if clip_path.rsplit(".")[-1] == "wav":
+        raw_clip, raw_sr = torchaudio.load(clip_path)
+    else:
+        raw_clip, raw_sr = librosa.load(clip_path, sr=None, mono=True)
+        raw_clip = torch.Tensor(raw_clip).unsqueeze(0)
+    #print(time.time() - t1, "s elapsed")
+    return raw_clip, raw_sr
+
+def _preprocess_clip(signal, sr, target_sr, target_samples):
+    
+    # resample if necessary
+    if target_sr and sr != target_sr:
+        signal = AT.Resample(sr, target_sr)(signal)
+
+    # to mono
+    if signal.shape[0] > 1:
+        signal = torch.mean(signal, dim=0, keepdim=True)
+
+    # cut if necessary
+    if target_samples and signal.shape[1] > target_samples:
+        signal = signal[:, 0:target_samples]
+
+    # right pad if necessary
+    if target_samples and signal.shape[1] < target_samples:
+        missing = target_samples - signal.shape[1]
+        signal = torch.nn.functional.pad(signal, (0, missing))
+
+    out_sr = target_sr if target_sr else sr
+    return signal, out_sr
+
+SPECTROGRAM = AT.MelSpectrogram(
+            n_fft = 1024,
+            hop_length = 512,
+            n_mels = 64,
+            normalized = False,
+        )
+
+def _to_spectrogram(clip, db_scale=True, minmax_norm=True):
+    spec = SPECTROGRAM(clip)
+    if db_scale:
+        spec = AT.AmplitudeToDB()(spec)
+    if minmax_norm:
+        spec -= torch.min(spec)
+        spec /= torch.max(spec)
+    return spec
+
+def load_audio(path, sample_rate=16000, mono=True, n_samples=False, normalized=False, transform=None):
+    """Load an audio clip into a pytorch Tensor.
+    
+    Args:
+        path: The path to the audio file. Accepted filetypes are: TODO.
+        sample_rate: The sample rate of the output signal Tensor. Resample input if necessary.
+            Keep original sample rate if None.
+        mono: Transform input signal to mono by averaging channels.
+        n_samples: Cut or pad the input signal to make it n_samples long.
+            Keep original length if None.
+        normalized: Normalize amplitude values to [0, 1].
+        transform: An instantiated custom pytorch Transform to apply to the signal
+            The transform must match the output type and shape.
+
+    Returns:
+        A 2D pytorch Tensor of size (1 or 2, samples).
+        The output sample rate.
+    """
+
+    raw_clip, raw_sr = _load_clip(path)
+    clip, sr = _preprocess_clip(raw_clip, raw_sr, sample_rate, n_samples)
+
+    if normalized:
+        clip = VF.normalize(clip, mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+    if transform:
+        clip = transform(clip)
+
+    return clip, sr
 
 def load_video(path):
     #TODO
@@ -85,7 +177,7 @@ def _is_torch_multimodal_dataset(dataset):
     valid_dtypes = True
     for mod in example:
         if mod in ["image", "audio", "video"]:
-            valid_dtypes = valid_dtypes and isinstance(example[mod], Tensor)
+            valid_dtypes = valid_dtypes and isinstance(example[mod], torch.Tensor)
         if mod == "text":
             valid_dtype = valid_dtypes and type(example[mod]) == str
     if not valid_dtypes:
@@ -98,7 +190,7 @@ def _is_torch_multimodal_dataset(dataset):
 
 class MultimodalDataset(Dataset):
 
-    def __init__(self, dir, img_size=400, col=1, frac=None, shuffle=False, verbose=True):
+    def __init__(self, dir, img_size=400, col=1, frac=None, shuffle=False, header=False, verbose=True):
         """Create a multimodal dataset object from directory.
 
         Args:
@@ -118,7 +210,8 @@ class MultimodalDataset(Dataset):
         if not _has_dataset(dir):
             raise FileNotFoundError("Provided 'dir' does not contain dataset in required form.")
 
-        self.df = pd.read_csv(os.path.join(dir, "target.tsv"), dtype={0: str}, sep="\t", header=None)
+        self.df = pd.read_csv(os.path.join(dir, "target.tsv"), dtype={0: str}, sep="\t",
+                    header=0 if header else None)
         if frac:
             self.df = self.df.sample(frac=frac)
         if shuffle:
@@ -284,7 +377,7 @@ def from_torch_dataset(torch_dataset, img_size=400, frac=None, shuffle=False):
         frac: Choose < 1 to randomly sub-sample loaded dataset.
         shuffle: Randomly shuffle training examples.
 
-    Returns: A TorchMultimodalDataset.
+    Returns: A TorchMultimodalDataset (subclass of MultimodalDataset).
     """
 
     return TorchMultimodalDataset(torch_dataset, img_size=img_size, frac=frac, shuffle=shuffle)
@@ -344,3 +437,22 @@ class Fauxtography(MultimodalDataset):
         if not _has_dataset(os.path.join(DATA_DIR, name)):
             _download_dataset(source, name)
         super(Fauxtography, self).__init__(os.path.join(DATA_DIR, name))
+
+
+class SpotifyMultimodalPop(MultimodalDataset):
+
+    def __init__(self, name="spotify_multimodal_pop"):
+        source = "https://download1321.mediafire.com/sut1leobddqg/92kh3k9pas08kkk/spotify_mm_pop.zip"
+        if not _has_dataset(os.path.join(DATA_DIR, name)):
+            _download_dataset(source, name)
+        super(SpotifyMultimodalPop, self).__init__(os.path.join(DATA_DIR, name), header=True)
+
+
+class SpotifyMultimodalVal(MultimodalDataset):
+
+    def __init__(self, name="spotify_multimodal_val"):
+        source = "https://download1497.mediafire.com/cf7ku2jzh9qg/w04p8oisw4i03i5/spotify_mm_val.zip"
+        if not _has_dataset(os.path.join(DATA_DIR, name)):
+            _download_dataset(source, name)
+        super(SpotifyMultimodalVal, self).__init__(os.path.join(DATA_DIR, name), header=True)
+    

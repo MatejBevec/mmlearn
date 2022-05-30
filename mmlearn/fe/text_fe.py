@@ -26,7 +26,7 @@ TEXT_FE_BATCH_SIZE = 4  # Batch size when extracting features from text
 # HELPER FUNCTIONS
 def _check_input(texts):
     if not (isinstance(texts, Iterable) and len(texts) > 0 and isinstance(texts[0], str)):
-        raise TypeError("Input must be a list or array of strings.")
+        raise TypeError("Text input must be a list or array of strings.")
     # Check if first run - maybe move elsewhere?
 
 def _extract_text_features(fe, dataset, ids=None):
