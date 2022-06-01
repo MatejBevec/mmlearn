@@ -96,8 +96,8 @@ class NaiveEarlyFusion(ClsModel):
 
     def _extract_features(self, dataset, ids):
         log_progress(f"Extracting features...", color="white", verbose=self.verbose)
-        image_ft, labels = self.image_fe.extract_all(dataset, ids)
-        text_ft, _ = self.text_fe.extract_all(dataset, ids)
+        image_ft, labels = self.image_fe.extract_all(dataset, ids, verbose=self.verbose)
+        text_ft, _ = self.text_fe.extract_all(dataset, ids, verbose=self.verbose)
         features = np.concatenate([image_ft, text_ft], axis=1)
         return features, labels
 

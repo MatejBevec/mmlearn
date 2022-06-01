@@ -40,7 +40,7 @@ class ImageNeuralClassifier():
         dataset, train_ids = prepare_input(dataset, train_ids)
         log_progress(f"Training {type(self.fe).__name__} fe + NN classifier model...", verbose=self.verbose)
 
-        features, labels = self.fe.extract_all(dataset, train_ids)
+        features, labels = self.fe.extract_all(dataset, train_ids, verbose=self.verbose)
         ft_dataset = TensorDataset(torch.from_numpy(features), torch.from_numpy(labels))
         n_cls = len(dataset.classes)
         
@@ -88,18 +88,18 @@ class ImageSkClassifier():
         log_progress(f"Training {type(self.fe).__name__} + {type(self.model).__name__} classifier model...",
                         verbose=self.verbose)
 
-        features, labels = self.fe.extract_all(dataset, train_ids)
+        features, labels = self.fe.extract_all(dataset, train_ids, verbose=self.verbose)
 
         self.model.fit(features, labels)
 
     def predict(self, dataset, test_ids):
         dataset, test_ids = prepare_input(dataset, test_ids)
-        features, labels = self.fe.extract_all(dataset, test_ids)
+        features, labels = self.fe.extract_all(dataset, test_ids, verbose=self.verbose)
         return self.model.predict(features)
 
     def predict_proba(self, dataset, test_ids):
         dataset, test_ids = prepare_input(dataset, test_ids)
-        features, labels = self.fe.extract_all(dataset, test_ids)
+        features, labels = self.fe.extract_all(dataset, test_ids, verbose=self.verbose)
         check_predicts_proba(self.model)
         return self.model.predict_proba(features)
 

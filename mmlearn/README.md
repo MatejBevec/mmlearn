@@ -32,6 +32,7 @@
 - more image models
 - docs from docstrings
 - a multimodal dataset which includes video
+- cut all unnecessary kwargs
 
 
 ## Considerations
@@ -48,13 +49,14 @@
 - is one MultimodalDataset for all modalities clean, or should i split the class?
   - one dataset
 - TODO: JSON file for settings
-- TODO: support regression?
+- TODO: ! support regression?
 - TODO: should the interface dtype be Ndarray instead of Tensor?
-- TODO: exact scikit model interface?
+- TODO: ! exact scikit model interface?
 - TODO: is get_texts() slow?
 - TODO: a more elegant way to do verbosity?
 - TODO: is it strange that feature extractor take Tensors on input and output Ndarrays?
 - TODO: using external libraries: how many dependencies is too many??? For example, OpenL3 installs    Tensorflow and more
+- TODO: MultimodalDataset: break out modality settings into config dicts?
 
 ## Style Guide
   - import default modules, external libraries, internal modules in this order

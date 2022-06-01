@@ -11,7 +11,7 @@ from sklearn.metrics import accuracy_score
 
 from mmlearn import data
 from mmlearn.fe import image_fe, text_fe, audio_fe
-from mmlearn.models import base_models, image_models, mm_models, text_models
+from mmlearn.models import base_models, image_models, mm_models, text_models, audio_models
 from mmlearn import eval
 
 logging.basicConfig(level=logging.INFO)
@@ -40,18 +40,18 @@ if __name__ == "__main__":
     # dataset3 = data.Fakeddit5k()
     # print("fe loaded")
 
-    spotify_dataset = data.SpotifyMultimodalPop()
+    spotify_dataset = data.SpotifyMultimodalPop(frac=0.2)
     example = spotify_dataset[0]
     print(type(example["audio"]))
     print(type(example["image"]))
     print(type(example["text"]))
     print(example["target"])
 
-    clip, sr = example["audio"]
-    batch = (clip.unsqueeze(0), sr)
-    fe = audio_fe.OpenL3()
-    emb = fe(batch)
-    print(emb)
+    # clip, sr = example["audio"]
+    # batch = (clip.unsqueeze(0), sr)
+    # fe = audio_fe.OpenL3()
+    # emb = fe(batch)
+    # print(emb)
 
     # dl = DataLoader(dataset, batch_size=4, shuffle=True)
     # # #imgs, texts, targets = next(iter(dl))
@@ -85,19 +85,21 @@ if __name__ == "__main__":
 
     # EVALUATE MULTIPLE MODELS AND DATASETS
 
-    # model= base_models.MajorityClassifier()
-    # model2 = text_models.TextSkClassifier(fe=text_fe.NGrams(), clf="svm_best")
-    # model3 = image_models.ImageSkClassifier()
+    model= base_models.MajorityClassifier()
+    model2 = text_models.TextSkClassifier(fe=text_fe.NGrams(), clf="svm_best")
+    #model3 = audio_models.AudioSkClassifier(verbose=True)
     # # # #model3 = text.TextSkClassifier(fe=fe.text.SentenceBERT(), clf="svm_best")
-    # all_models = {"majority": model, "ngrams_svm": model2, "mobilenet_svm": model3}
-    # all_ds = {"tasty": dataset, "faux": dataset2}
+    all_models = {"majority": model, "ngrams_svm": model2, "mobilenet_svm": model3}
+    #all_models = {"mobilenet_svm": model3}
+    ##all_ds = {"tasty": dataset, "faux": dataset2}
+    all_ds = {"spotify_valence": spotify_dataset}
 
     # # # # print(eval.holdout(dataset, model2, dataframe=True))
     # # # # print(eval.cross_validate(dataset, model2, dataframe=True))
 
-    # results = eval.holdout_many(all_ds, all_models)
-    # for metric in results:
-    #     print("\n", metric, "\n", results[metric])
+    results = eval.holdout_many(all_ds, all_models)
+    for metric in results:
+        print("\n", metric, "\n", results[metric])
 
 
     # model = mm_models.NaiveEarlyFusion(verbose=True, clf="lr")

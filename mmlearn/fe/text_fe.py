@@ -16,6 +16,7 @@ from sklearn.preprocessing import Normalizer
 from sklearn.pipeline import FeatureUnion, Pipeline
 import gensim.test.utils
 from gensim.models import doc2vec
+from tqdm import tqdm
 
 from mmlearn.data import MultimodalDataset
 from mmlearn.util import log_progress, DEVICE, USE_CUDA, SAVE_DIR
@@ -29,17 +30,24 @@ def _check_input(texts):
         raise TypeError("Text input must be a list or array of strings.")
     # Check if first run - maybe move elsewhere?
 
-def _extract_text_features(fe, dataset, ids=None):
+def _extract_text_features(fe, dataset, ids=None, verbose=False):
     if not isinstance(dataset, MultimodalDataset):
         raise TypeError("'dataset' must be a MultimodalDataset.")
     if not isinstance(fe, TextExtractor):
         raise TypeError("'fe' must be a TextExtractor from fe.text")
+
     features_list = []
     labels_list = []
+    n = len(ids) if ids is not None else len(dataset)
     dl = DataLoader(dataset, batch_size=TEXT_FE_BATCH_SIZE, sampler=ids)
+
+    pbar = tqdm(total=n, desc="Extracting text features", disable=not verbose)
     for i, batch in enumerate(dl, 0):
         features_list.append(fe(batch["text"]))
         labels_list.append(batch["target"])
+        pbar.update(len(batch["target"]))
+    pbar.close()
+
     features = np.concatenate(features_list, axis=0)
     labels = np.concatenate(labels_list, axis=0)
     return features, labels
@@ -68,10 +76,10 @@ class TextExtractor(ABC):
         """
         pass
 
-    def extract_all(self, dataset, ids=None):
+    def extract_all(self, dataset, ids=None, verbose=False):
         """Extracts image features (embeddings) for entire dataset."""
         
-        return _extract_text_features(self, dataset, ids)
+        return _extract_text_features(self, dataset, ids, verbose)
 
 
 class NGrams(TextExtractor):

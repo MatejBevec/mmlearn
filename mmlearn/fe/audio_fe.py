@@ -11,6 +11,7 @@ import torchvision.models as models
 import pytorch_pretrained_vit
 from sentence_transformers import SentenceTransformer
 import openl3
+from tqdm import tqdm
 
 from mmlearn.data import MultimodalDataset
 from mmlearn.util import log_progress, DEVICE, USE_CUDA
@@ -23,17 +24,24 @@ def _check_input(x):
     if not (type(x) is torch.Tensor and len(x.shape) == 3 and x.shape[1] <= 2):
         raise TypeError("Audio input must be a 3-dimensional Tensor of shape (batches, channels, samples).")
 
-def _extract_audio_features(fe, dataset, ids=None):
+def _extract_audio_features(fe, dataset, ids=None, verbose=False):
     if not isinstance(dataset, MultimodalDataset):
         raise TypeError("'dataset' must be a MultimodalDataset.")
     if not isinstance(fe, AudioExtractor):
         raise TypeError("'fe' must be a AudioExtractor from fe.audio_fe.")
+
     features_list = []
     labels_list = []
+    n = len(ids) if ids is not None else len(dataset)
     dl = DataLoader(dataset, batch_size=AUDIO_FE_BATCH_SIZE, sampler=ids)
+
+    pbar = tqdm(total=n, desc="Extracting audio features", disable=not verbose)
     for i, batch in enumerate(dl, 0):
         features_list.append(fe(batch["audio"]))
         labels_list.append(batch["target"])
+        pbar.update(len(batch["target"]))
+    pbar.close()
+
     features = np.concatenate(features_list, axis=0)
     labels = np.concatenate(labels_list, axis=0)
     return features, labels
@@ -59,10 +67,10 @@ class AudioExtractor(ABC):
         """
         pass
 
-    def extract_all(self, dataset, ids=None):
+    def extract_all(self, dataset, ids=None, verbose=False):
         """Extracts image features (embeddings) for entire dataset."""
 
-        return _extract_audio_features(self, dataset, ids)
+        return _extract_audio_features(self, dataset, ids, verbose)
 
 
 class OpenL3(AudioExtractor):
@@ -93,12 +101,14 @@ class OpenL3(AudioExtractor):
 
     def __call__(self, batch):
         clips, sr = batch
+        sr = sr[0].item()
         _check_input(clips)
         emb_list = []
         for i in range(clips.shape[0]):
             clip = clips[i, :]
             clip = clip.transpose(1, 0).numpy()
-            emb_batch, ts = openl3.get_audio_embedding(clip, sr, model=self.model, hop_size=self.hop_size)
+            emb_batch, ts = openl3.get_audio_embedding(clip, sr, 
+                                model=self.model, hop_size=self.hop_size, verbose=False)
             emb = torch.mean(torch.from_numpy(emb_batch), dim=0, keepdim=False)
             emb_list.append(emb)
 

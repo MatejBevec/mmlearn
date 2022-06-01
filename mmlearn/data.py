@@ -106,7 +106,7 @@ def _to_spectrogram(clip, db_scale=True, minmax_norm=True):
         spec /= torch.max(spec)
     return spec
 
-def load_audio(path, sample_rate=16000, mono=True, n_samples=False, normalized=False, transform=None):
+def load_audio(path, sample_rate=16000, mono=True, n_samples=None, normalized=False, transform=None):
     """Load an audio clip into a pytorch Tensor.
     
     Args:
@@ -154,13 +154,13 @@ def _is_data_directory(dir, ds):
         fns = sorted(list(os.listdir(dir)))
         a = sorted([fn.rsplit(".")[0] for fn in os.listdir(dir)])
         b = sorted(ds.df.iloc[:, 0])
-        if not (a == b):
+        if not (set(b).issubset(set(b))):
             log_progress(f"Path {dir} is a directory but its contents\
                             don't align with target.tsv. Skipping this modality.", level="warning")
             return False
         elif not all(fn.rsplit(".")[1] == fns[0].rsplit(".")[1] for fn in fns):
             log_progress(f"Path {dir} contains files\
-                            the file extensions don't match. Skipping this modality.", level="warning")
+                            but there are multiple file extensions present. Skipping this modality.", level="warning")
             return False
         return True
 
@@ -190,7 +190,9 @@ def _is_torch_multimodal_dataset(dataset):
 
 class MultimodalDataset(Dataset):
 
-    def __init__(self, dir, img_size=400, col=1, frac=None, shuffle=False, header=False, verbose=True):
+    def __init__(self, dir, col=1, frac=None, shuffle=False, header=False, verbose=True,
+                    img_size=400,
+                    sample_rate=16000, mono=True, n_samples=None):
         """Create a multimodal dataset object from directory.
 
         Args:
@@ -205,8 +207,21 @@ class MultimodalDataset(Dataset):
             col: Target class column in target.tsv.
             frac: Choose < 1 to randomly sub-sample loaded dataset.
             shuffle: Randomly shuffle training examples.
+            img_size: Height and width for output images.
+            sample_rate: The sample rate output audio clips. Resample input if necessary.
+                Keep original sample rate if None.
+            mono: Transform input signal to mono by averaging channels.
+            n_samples: Cut or pad the input signal to make it n_samples long.
+                Take the length of the first clip if None.
         """
 
+        # Set modality params
+        self.h = img_size
+        self.sample_rate = sample_rate
+        self.mono = mono
+        self.n_samples = n_samples
+
+        # Load and process the dataframe
         if not _has_dataset(dir):
             raise FileNotFoundError("Provided 'dir' does not contain dataset in required form.")
 
@@ -217,6 +232,10 @@ class MultimodalDataset(Dataset):
         if shuffle:
             self.shuffle()
 
+        self.classes, self.targets = np.unique(self.df.iloc[:,col], return_inverse=True)
+        self.n_cls = len(self.classes)
+
+        # Initialize this dataset's modalities
         self.data_dirs, self.exts, self.av_mods = {}, {}, {}
         for modality in ["image", "text", "audio", "video"]:
             data_dir = os.path.join(dir, modality)
@@ -226,12 +245,13 @@ class MultimodalDataset(Dataset):
                 self.exts[modality] = "." + list(os.listdir(data_dir))[0].rsplit(".")[1]
             else:
                 self.av_mods[modality] = False
-
         self.mods = self.av_mods.copy()
 
-        self.h = img_size
-        self.classes, self.targets = np.unique(self.df.iloc[:,col], return_inverse=True)
-        self.n_cls = len(self.classes)
+        # Set default audio clip n_samples
+        if self.mods["audio"] and self.n_samples is None:
+            first_clip_path = os.path.join(self.data_dirs["audio"], self.names[0] + self.exts["audio"])
+            first_clip, sr = load_audio(first_clip_path, self.sample_rate, self.mono)
+            self.n_samples = first_clip.shape[1]
 
 
     def __len__(self):
@@ -243,13 +263,14 @@ class MultimodalDataset(Dataset):
 
         if self.mods["image"]:
             img = load_image(os.path.join(self.data_dirs["image"], id + self.exts["image"]),
-                             h=self.h, w=self.h)
+                                h=self.h, w=self.h)
             example["image"] = img
         if self.mods["text"]:
             text = load_text(os.path.join(self.data_dirs["text"], id + self.exts["text"]))
             example["text"] = text
         if self.mods["audio"]:
-            audio = load_audio(os.path.join(self.data_dirs["audio"], id + self.exts["audio"]))
+            audio = load_audio(os.path.join(self.data_dirs["audio"], id + self.exts["audio"]),
+                                sample_rate=self.sample_rate, mono=self.mono, n_samples=self.n_samples)
             example["audio"] = audio
         if self.mods["video"]:
             video = load_video(os.path.join(self.data_dirs["video"], id + self.exts["video"]))
@@ -441,18 +462,20 @@ class Fauxtography(MultimodalDataset):
 
 class SpotifyMultimodalPop(MultimodalDataset):
 
-    def __init__(self, name="spotify_multimodal_pop"):
-        source = "https://download1321.mediafire.com/sut1leobddqg/92kh3k9pas08kkk/spotify_mm_pop.zip"
+    def __init__(self, name="spotify_multimodal_pop", frac=None):
+        source = "https://download1336.mediafire.com/k9dl7neyh2eg/fnd60rzaj0ey4na/spotify_mm_pop.zip"
         if not _has_dataset(os.path.join(DATA_DIR, name)):
             _download_dataset(source, name)
-        super(SpotifyMultimodalPop, self).__init__(os.path.join(DATA_DIR, name), header=True)
+        super(SpotifyMultimodalPop, self).__init__(os.path.join(DATA_DIR, name),
+                header=True, n_samples=48000, frac=frac)
 
 
 class SpotifyMultimodalVal(MultimodalDataset):
 
-    def __init__(self, name="spotify_multimodal_val"):
-        source = "https://download1497.mediafire.com/cf7ku2jzh9qg/w04p8oisw4i03i5/spotify_mm_val.zip"
+    def __init__(self, name="spotify_multimodal_val", frac=None):
+        source = "https://download1497.mediafire.com/mku6selaeemg/w04p8oisw4i03i5/spotify_mm_val.zip"
         if not _has_dataset(os.path.join(DATA_DIR, name)):
             _download_dataset(source, name)
-        super(SpotifyMultimodalVal, self).__init__(os.path.join(DATA_DIR, name), header=True)
+        super(SpotifyMultimodalVal, self).__init__(os.path.join(DATA_DIR, name),
+                header=True, n_samples=48000, frac=frac)
     
