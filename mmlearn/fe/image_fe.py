@@ -71,6 +71,11 @@ class ImageExtractor(ABC):
 
         return _extract_image_features(self, dataset, ids, verbose)
 
+    @property
+    def modalities(self):
+        return ["image"]
+
+
 
 class ResNet(ImageExtractor):
 

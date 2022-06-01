@@ -27,49 +27,26 @@ from simpletransformers.classification import ClassificationModel
 from tpot import TPOTClassifier
 from sentence_transformers import SentenceTransformer
 
-from mmlearn.models.base_models import ClsModel, prepare_input, get_classifier, check_predicts_proba
+from mmlearn.models.base_models import ClsModel, UnimodalSkClassifier
+from mmlearn.models.base_models import prepare_input, check_predicts_proba, get_classifier
 from mmlearn.fe import text_fe as textfe
 from mmlearn.util import log_progress, DEVICE, USE_CUDA
 
 
 
-class TextSkClassifier(ClsModel):
+class ImageSkClassifier(UnimodalSkClassifier):
 
     def __init__(self, fe="default", clf="svm_best", verbose=False):
-        """Word and character n-gram features + sklearn classifier.
+        """Text feature extractor + a scikit-learn classifier.
+            A shorthand for UnimodalSkClassifier(fe=text_fe.NGrams()).
         
         Args:
-            fe: A feature extractor model from 'textfe'. Default is textfe.NGrams.
+            fe: A feature extractor model from 'fe.text_fe'. Default is NGrams().
             clf: The classifier to use. 'svm', 'lr', 'rf' or an instance of any sklearn classifer.
         """
         
-        self.fe = textfe.NGrams() if fe == "default" else fe
-        self.model = get_classifier(clf, verbose=verbose)
-        self.verbose = verbose
-
-    def train(self, dataset, train_ids):
-        dataset, train_ids = prepare_input(dataset, train_ids)
-
-        log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
-        texts, labels = dataset.get_texts(train_ids)
-
-        for i, tid in enumerate(train_ids):
-            #print(tid, dataset.classes[labels[i]], dataset.names[tid])
-            pass
-        train_ft = self.fe(texts, train=True)
-        #print(train_ft)
-        self.model.fit(train_ft, labels)
-
-    def predict(self, dataset, test_ids):
-        dataset, test_ids = prepare_input(dataset, test_ids)
-        texts, labels = dataset.get_texts(test_ids)
-        return self.model.predict(self.fe(texts, train=False))
-
-    def predict_proba(self, dataset, test_ids):
-        datset, test_ids = prepare_input(dataset, test_ids)
-        texts, labels = dataset.get_texts(test_ids)
-        check_predicts_proba(self.model)
-        return self.model.predict_proba(self.fe(texts, train=False))
+        fe = textfe.NGrams() if fe == "default" else fe
+        super(self, ImageSkClassifier).__init__(fe=fe, clf=clf, verbose=verbose)
 
 
 class BERT(ClsModel):
@@ -93,7 +70,7 @@ class BERT(ClsModel):
         self.verbose = verbose
         
     def train(self, dataset, train_ids):
-        dataset, train_ids = prepare_input(dataset, train_ids)
+        dataset, train_ids = prepare_input(dataset, train_ids, self)
         log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
 
         self.dataset = dataset
@@ -118,7 +95,7 @@ class BERT(ClsModel):
         self.model.train_model(train_df, verbose=self.verbose)
 
     def _predict(self, dataset, test_ids):
-        dataset, test_ids = prepare_input(dataset, test_ids)
+        dataset, test_ids = prepare_input(dataset, test_ids, self)
         texts, _ = dataset.get_texts(test_ids)
         pred, raw_outputs = self.model.predict(list(texts))
         return pred, scipy.special.softmax(np.array(raw_outputs), axis=1)
@@ -142,7 +119,7 @@ class TPOT(ClsModel):
         self.verbose = verbose
 
     def train(self, dataset, train_ids):
-        dataset, train_ids = prepare_input(dataset, train_ids)
+        dataset, train_ids = prepare_input(dataset, train_ids, self)
         log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
 
         self.dataset = dataset
@@ -164,12 +141,12 @@ class TPOT(ClsModel):
         self.model.fit(texts[train_ids], labels[train_ids])
 
     def predict(self, test_ids):
-        dataset, test_ids = prepare_input(dataset, test_ids)
+        dataset, test_ids = prepare_input(dataset, test_ids, self)
         texts, labels = dataset.get_texts(test_ids)
         return self.model.predict(texts)
 
     def predict_proba(self, test_ids):
-        dataset, test_ids = prepare_input(dataset, test_ids)
+        dataset, test_ids = prepare_input(dataset, test_ids, self)
         texts, labels = dataset.get_texts(test_ids)
         check_predicts_proba(self.model)
         return self.model.predict_proba(texts)

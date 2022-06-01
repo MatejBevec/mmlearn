@@ -35,17 +35,17 @@ if __name__ == "__main__":
     
     # MULTIMODAL DATASETS
 
-    #dataset = data.TastyRecipes()
-    #dataset2 = data.Fauxtography()
+    dataset = data.TastyRecipes()
+    dataset2 = data.Fauxtography()
     # dataset3 = data.Fakeddit5k()
     # print("fe loaded")
 
-    spotify_dataset = data.SpotifyMultimodalPop(frac=0.2)
-    example = spotify_dataset[0]
-    print(type(example["audio"]))
-    print(type(example["image"]))
-    print(type(example["text"]))
-    print(example["target"])
+    spotify_dataset = data.SpotifyMultimodalVal(frac=0.2)
+    #example = spotify_dataset[0]
+    #print(type(example["audio"]))
+    #print(type(example["image"]))
+    #print(type(example["text"]))
+    #print(example["target"])
 
     # clip, sr = example["audio"]
     # batch = (clip.unsqueeze(0), sr)
@@ -86,12 +86,13 @@ if __name__ == "__main__":
     # EVALUATE MULTIPLE MODELS AND DATASETS
 
     model= base_models.MajorityClassifier()
-    model2 = text_models.TextSkClassifier(fe=text_fe.NGrams(), clf="svm_best")
+    #model2 = text_models.TextSkClassifier(fe=text_fe.NGrams(), clf="svm_best")
     #model3 = audio_models.AudioSkClassifier(verbose=True)
     # # # #model3 = text.TextSkClassifier(fe=fe.text.SentenceBERT(), clf="svm_best")
-    all_models = {"majority": model, "ngrams_svm": model2, "mobilenet_svm": model3}
-    #all_models = {"mobilenet_svm": model3}
-    ##all_ds = {"tasty": dataset, "faux": dataset2}
+    model3 = base_models.UnimodalSkClassifier(fe=audio_fe.OpenL3(), verbose=True)
+    #all_models = {"majority": model, "ngrams_svm": model2, "mobilenet_svm": model3}
+    all_models = {"openl3_svm": model3}
+    #all_ds = {"tasty": dataset, "faux": dataset2}
     all_ds = {"spotify_valence": spotify_dataset}
 
     # # # # print(eval.holdout(dataset, model2, dataframe=True))

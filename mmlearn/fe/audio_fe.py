@@ -72,6 +72,10 @@ class AudioExtractor(ABC):
 
         return _extract_audio_features(self, dataset, ids, verbose)
 
+    @property
+    def modalities(self):
+        return ["audio"]
+
 
 class OpenL3(AudioExtractor):
     """Audio feature extractor: OpenL3 deep audio embedding.

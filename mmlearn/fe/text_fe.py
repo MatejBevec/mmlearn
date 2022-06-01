@@ -81,6 +81,10 @@ class TextExtractor(ABC):
         
         return _extract_text_features(self, dataset, ids, verbose)
 
+    @property
+    def modalities(self):
+        return ["text"]
+
 
 class NGrams(TextExtractor):
 

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from multiprocessing.sharedctypes import Value
 from typing import Iterable
 import logging
 import itertools
@@ -25,11 +26,14 @@ PRED_BATCH_SIZE = 16    # Default batch size for prediction using ClsModel-s
 
 # HELPER METHODS
 
-def prepare_input(dataset, ids):
+def prepare_input(dataset, ids, model):
     if not isinstance(dataset, MultimodalDataset):
         raise TypeError("'dataset' must be a MultimodalDataset.")
     if not (isinstance(ids, Iterable) and len(ids) > 0 or ids is None):
         raise TypeError("IDs must be an iterable of integer indices or None")
+    if not set(model.modalities).issubset(dataset.modalities):
+        raise TypeError(f"The dataset {type(dataset).__name__}: {dataset.modalities} does not provide"\
+                        "modalities required by the model {type(model).__name__}: {model.modalities}.")
     if ids is None:
         ids = np.arange(len(dataset))
     return dataset, ids
@@ -171,6 +175,9 @@ class AutoSkClf(BaseEstimator):
         return self.model.predict_proba(X)
 
 class AutoLinearSVM(AutoSkClf):
+    """A sklearn BaseEstimator.
+        Fits multiple LinearSVM models with different reguralization parameters and picks best performer.
+    """
 
     def __init__(self, verbose=False):
         C_range = [0.1, 0.5, 1, 5, 10, 20, 50, 100, 500]
@@ -179,6 +186,9 @@ class AutoLinearSVM(AutoSkClf):
         self.verbose = verbose
 
 class AutoLogisticRegression(AutoSkClf):
+    """A sklearn BaseEstimator.
+        Fits multiple LogisticRegression models with different reguralization parameters and picks best performer.
+    """
 
     def __init__(self, verbose=False):
         C_range = [0.1, 0.5, 1, 5, 10, 20, 50, 100, 500]
@@ -235,13 +245,13 @@ class RandomClassifier(ClsModel):
         self.verbose = verbose
     
     def train(self, dataset, train_ids=None):
-        dataset, train_ids = prepare_input(dataset, train_ids)
+        dataset, train_ids = prepare_input(dataset, train_ids, self)
         log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
         self.dataset = dataset
         self.n_cls = len(dataset.classes)
     
     def predict(self, dataset, test_ids=None):
-        dataset, test_ids = prepare_input(dataset, test_ids)
+        dataset, test_ids = prepare_input(dataset, test_ids, self)
         return np.random.RandomState(seed=self.seed).randint(0, self.n_cls, len(test_ids))
 
 
@@ -252,7 +262,7 @@ class MajorityClassifier(ClsModel):
         self.verbose = verbose
 
     def train(self, dataset, train_ids=None):
-        dataset, train_ids = prepare_input(dataset, train_ids)
+        dataset, train_ids = prepare_input(dataset, train_ids, self)
         log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
         _, labels = dataset.get_texts()
         self.mode_cls = scipy.stats.mode(labels[train_ids])[0]
@@ -260,9 +270,49 @@ class MajorityClassifier(ClsModel):
         self.proba = scipy.special.softmax(self.freqs)
 
     def predict(self, dataset, test_ids=None):
-        dataset, test_ids = prepare_input(dataset, test_ids)
+        dataset, test_ids = prepare_input(dataset, test_ids, self)
         return np.repeat(self.mode_cls, len(test_ids))
 
     def predict_proba(self, dataset, test_ids=None):
-        dataset, test_ids = prepare_input(dataset, test_ids)
+        dataset, test_ids = prepare_input(dataset, test_ids, self)
         return np.tile(self.proba, (len(test_ids), 1))
+
+
+class UnimodalSkClassifier():
+
+    def __init__(self, fe=None, clf="svm_best", verbose=False):
+        """A model consisting of a feature extractor (from mmlearn.fe) and a sklearn classifier.
+        
+        Args:
+            fe: A feature extractor model from 'fe.image', 'fe.text', 'fe.audio' or 'fe.video'.
+                The modality of the choosen f.e. must match the used dataset(s) (the dataset(s) must include it).
+            clf: The classifier to use. 'svm', 'lr', 'rf' or an instance of any sklearn classifer.
+                Default is base_models.AutoLinearSVM().
+        """
+        
+        if not fe:
+            raise ValueError("The feature extractor (fe) was not provided as argument.")
+        self.fe = fe
+        self.model = get_classifier(clf, verbose=verbose)
+        self.modalities = self.fe.modalities
+        self.verbose = verbose
+
+    def train(self, dataset, train_ids):
+        dataset, train_ids = prepare_input(dataset, train_ids, self)
+        log_progress(f"Training {type(self.fe).__name__} + {type(self.model).__name__} classifier model...",
+                        verbose=self.verbose)
+
+        features, labels = self.fe.extract_all(dataset, train_ids, verbose=self.verbose)
+
+        self.model.fit(features, labels)
+
+    def predict(self, dataset, test_ids):
+        dataset, test_ids = prepare_input(dataset, test_ids, self)
+        features, labels = self.fe.extract_all(dataset, test_ids, verbose=self.verbose)
+        return self.model.predict(features)
+
+    def predict_proba(self, dataset, test_ids):
+        dataset, test_ids = prepare_input(dataset, test_ids, self)
+        features, labels = self.fe.extract_all(dataset, test_ids, verbose=self.verbose)
+        check_predicts_proba(self.model)
+        return self.model.predict_proba(features)
