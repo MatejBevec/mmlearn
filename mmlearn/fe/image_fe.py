@@ -19,9 +19,14 @@ IMG_FE_BATCH_SIZE = 4   # Batch size when extracting features from images
 
 
 # HELPER FUNCTIONS
-def _check_input(x):
-    if not (type(x) is torch.Tensor and len(x.shape) == 4):
-        raise TypeError("Image input must be a 4-dimensional Tensor of shape (batches, channels, h, w).")
+def _check_input(imgs):
+    t = type(imgs)
+    if not (t in [torch.Tensor, np.ndarray] and len(imgs.shape) == 4):
+        raise TypeError("Image input must be a 4-dimensional Tensor or ndarray of shape (batches, channels, h, w).")
+    if t == np.ndarray:
+        imgs = torch.from_numpy(imgs)
+    return imgs
+
 
 def _extract_image_features(fe, dataset, ids=None, verbose=False):
     if not isinstance(dataset, MultimodalDataset):
@@ -71,6 +76,16 @@ class ImageExtractor(ABC):
 
         return _extract_image_features(self, dataset, ids, verbose)
 
+    def fit_transform(self, X, y=None):
+        """For sklearn compatibility. (Trains) and calls f.e."""
+
+        return self.__call__(torch.from_numpy(X), train=True)
+
+    def transform(self, X, y=None):
+        """For sklearn compatibility. Calls f.e. (without training)."""
+
+        return self.__call__(torch.from_numpy(X), train=False)
+
     @property
     def modalities(self):
         return ["image"]
@@ -85,8 +100,8 @@ class ResNet(ImageExtractor):
         self.model.fc = nn.Identity()
         self.model.eval().to(DEVICE)
 
-    def __call__(self, imgs):
-        _check_input(imgs)
+    def __call__(self, imgs, train=False):
+        imgs = _check_input(imgs)
         return self.model(imgs.to(DEVICE)).detach().cpu().numpy()
 
 class InceptionV3(ImageExtractor):
@@ -97,8 +112,8 @@ class InceptionV3(ImageExtractor):
         self.model.fc = nn.Identity()
         self.model.eval().to(DEVICE)
 
-    def __call__(self, imgs):
-        _check_input(imgs)
+    def __call__(self, imgs, train=False):
+        imgs = _check_input(imgs)
         return self.model(imgs.to(DEVICE)).detach().cpu().numpy()
 
 class MobileNetV3(ImageExtractor):
@@ -109,8 +124,8 @@ class MobileNetV3(ImageExtractor):
         self.model.classifier = nn.Identity()
         self.model.eval().to(DEVICE)
 
-    def __call__(self, imgs):
-        _check_input(imgs)
+    def __call__(self, imgs, train=False):
+        imgs = _check_input(imgs)
         return self.model(imgs.to(DEVICE)).detach().cpu().numpy()
 
 class EfficientNet(ImageExtractor):
@@ -121,8 +136,8 @@ class EfficientNet(ImageExtractor):
         self.model.classifier = nn.Identity()
         self.model.eval().to(DEVICE)
     
-    def __call__(self, imgs):
-        _check_input(imgs)
+    def __call__(self, imgs, train=False):
+        imgs = _check_input(imgs)
         return self.model(imgs.to(DEVICE)).detach().cpu().numpy()
 
 class ViT(ImageExtractor):
@@ -135,8 +150,8 @@ class ViT(ImageExtractor):
         self.model.eval().to(DEVICE)
         self.tf = tf.Compose([tf.Resize((384,384)), tf.Normalize(0.5, 0.5)])
 
-    def __call__(self, imgs):
-        _check_input(imgs)
+    def __call__(self, imgs, train=False):
+        imgs = _check_input(imgs)
         return self.model(self.tf(imgs).to(DEVICE)).detach().cpu().numpy()
 
 class ImageCLIP(ImageExtractor):
@@ -145,9 +160,9 @@ class ImageCLIP(ImageExtractor):
         """Feature extractor: CLIP joint image-text embedding model."""
         self.fe = SentenceTransformer("clip-ViT-B-32")
     
-    def __call__(self, texts):
-        _check_input(texts)
-        return self.fe.encode(texts)
+    def __call__(self, imgs, train=False):
+        imgs = _check_input(imgs)
+        return self.fe.encode(imgs)
 
 
 

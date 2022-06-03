@@ -51,12 +51,13 @@
 - TODO: JSON file for settings
 - TODO: ! support regression?
 - TODO: should the interface dtype be Ndarray instead of Tensor?
-- TODO: ! exact scikit model interface?
+- TODO: ! exact scikit model interface? (see how skorch does it)
 - TODO: is get_texts() slow?
 - TODO: a more elegant way to do verbosity?
 - TODO: is it strange that feature extractor take Tensors on input and output Ndarrays?
 - TODO: using external libraries: how many dependencies is too many??? For example, OpenL3 installs    Tensorflow and more
 - TODO: MultimodalDataset: break out modality settings into config dicts?
+- TODO: ! Rethink trainable fes. Problem: you should be able to use them on batches.
 
 ## Style Guide
   - import default modules, external libraries, internal modules in this order

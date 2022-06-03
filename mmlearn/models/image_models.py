@@ -17,13 +17,13 @@ from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestClassifier
 import scipy.special
 
-from mmlearn.models.base_models import ClsModel, UnimodalSkClassifier
+from mmlearn.models.base_models import PredictionModel, UnimodalSkClassifier
 from mmlearn.models.base_models import prepare_input, check_predicts_proba, get_classifier
 from mmlearn.models import base_models
 from mmlearn.fe import image_fe as imgfe
 from mmlearn.util import log_progress, DEVICE, REG_PARAM_RANGE
 
-class ImageNeuralClassifier():
+class ImageNeuralClassifier(PredictionModel):
 
     def __init__(self, fe="default", verbose=False):
         """Image feature extractor + a pytorch NN classifier.
@@ -84,7 +84,7 @@ class ImageSkClassifier(UnimodalSkClassifier):
         super(self, ImageSkClassifier).__init__(fe=fe, clf=clf, verbose=verbose)
 
 
-class TunedMobileNetV3(ClsModel):
+class TunedMobileNetV3(PredictionModel):
 
     def __init__(self, epochs=20, verbose=False):
         """Fine-tuned pretrained MobileNet V3 Large image classification model.

@@ -21,8 +21,8 @@ from torch.utils.data import DataLoader, TensorDataset
 from mmlearn.data import MultimodalDataset
 from mmlearn.util import log_progress, DEVICE
 
-TRAIN_BATCH_SIZE = 32   # Default batch size for training ClsModel-s
-PRED_BATCH_SIZE = 16    # Default batch size for prediction using ClsModel-s
+TRAIN_BATCH_SIZE = 32   # Default batch size for training PredictionModel-s
+PRED_BATCH_SIZE = 16    # Default batch size for prediction using PredictionModel-s
 
 # HELPER METHODS
 
@@ -49,7 +49,7 @@ def check_predicts_proba(model):
 
 def get_classifier(clf, verbose=False):
     """Returns one of the pre-configured sklearn-style classifiers.
-        Used to parse the "clf" argument in ClsModel constructors when a shorthand string is provided.
+        Used to parse the "clf" argument in PredictionModel constructors when a shorthand string is provided.
 
     Args:
         clf: One of the following string abbreviations, referring to the type of classifier to return:
@@ -198,11 +198,11 @@ class AutoLogisticRegression(AutoSkClf):
 
 # BASE END-TO-END CLASSIFIERS
 
-class ClsModel(ABC):
+class PredictionModel(ABC):
     """Base classification model class.
     
     A common interface for all models - text-only, image-only and multimodal.
-    Any ClsModel can be trained on any MultimodalDataset.
+    Any PredictionModel can be trained on any MultimodalDataset.
 
     Attributes:
         modalities: A list of strings denoting modalities which this model operates with.
@@ -237,7 +237,7 @@ class ClsModel(ABC):
         pass
 
 
-class RandomClassifier(ClsModel):
+class RandomClassifier(PredictionModel):
     """Predicts random class for every test instance."""
 
     def __init__(self, random_state=42, verbose=False):
@@ -255,7 +255,7 @@ class RandomClassifier(ClsModel):
         return np.random.RandomState(seed=self.seed).randint(0, self.n_cls, len(test_ids))
 
 
-class MajorityClassifier(ClsModel):
+class MajorityClassifier(PredictionModel):
     """Predicts the most frequent class in training set for every test instance."""
 
     def __init__(self, verbose=False):
@@ -278,7 +278,7 @@ class MajorityClassifier(ClsModel):
         return np.tile(self.proba, (len(test_ids), 1))
 
 
-class UnimodalSkClassifier():
+class UnimodalSkClassifier(PredictionModel):
 
     def __init__(self, fe=None, clf="svm_best", verbose=False):
         """A model consisting of a feature extractor (from mmlearn.fe) and a sklearn classifier.

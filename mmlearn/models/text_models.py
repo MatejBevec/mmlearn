@@ -27,7 +27,7 @@ from simpletransformers.classification import ClassificationModel
 from tpot import TPOTClassifier
 from sentence_transformers import SentenceTransformer
 
-from mmlearn.models.base_models import ClsModel, UnimodalSkClassifier
+from mmlearn.models.base_models import PredictionModel, UnimodalSkClassifier
 from mmlearn.models.base_models import prepare_input, check_predicts_proba, get_classifier
 from mmlearn.fe import text_fe as textfe
 from mmlearn.util import log_progress, DEVICE, USE_CUDA
@@ -49,7 +49,7 @@ class ImageSkClassifier(UnimodalSkClassifier):
         super(self, ImageSkClassifier).__init__(fe=fe, clf=clf, verbose=verbose)
 
 
-class BERT(ClsModel):
+class BERT(PredictionModel):
     """A fine-tuned BERT transformer model in classifier configuration. 
 
     The chosen pretrained BERT model and fine-tuned on given data.
@@ -107,7 +107,7 @@ class BERT(ClsModel):
         return self._predict(dataset, test_ids)[1]
 
 
-class TPOT(ClsModel):
+class TPOT(PredictionModel):
     """A tree-based sklearn AutoML model.
     
     AutoML tool that automatically evolves scikit-learn pipelines based on tree ensemble learners.

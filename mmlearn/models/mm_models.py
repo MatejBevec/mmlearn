@@ -25,7 +25,7 @@ from simpletransformers.classification import ClassificationModel
 from tpot import TPOTClassifier
 from sentence_transformers import SentenceTransformer
 
-from mmlearn.models.base_models import ClsModel, UnimodalSkClassifier
+from mmlearn.models.base_models import PredictionModel, UnimodalSkClassifier
 from mmlearn.models.base_models import prepare_input, check_predicts_proba, get_classifier
 from mmlearn.fe import text_fe as textfe
 from mmlearn.fe import image_fe as imgfe
@@ -34,7 +34,7 @@ from mmlearn.models import image_models
 from mmlearn.util import log_progress, DEVICE, USE_CUDA, REG_PARAM_RANGE
 
 
-class LateFusion(ClsModel):
+class LateFusion(PredictionModel):
 
     def __init__(self, image_model="default", text_model="default", combine="max", verbose=False):
         """
@@ -75,7 +75,7 @@ class LateFusion(ClsModel):
         pass
  
 
-class NaiveEarlyFusion(ClsModel):
+class NaiveEarlyFusion(PredictionModel):
 
     def __init__(self, image_fe="default", text_fe="default", clf="svm", verbose=False):
         """Naive multimodal early fusion model.

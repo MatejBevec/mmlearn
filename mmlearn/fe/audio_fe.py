@@ -20,9 +20,13 @@ AUDIO_FE_BATCH_SIZE = 4   # Batch size when extracting features from images
 
 
 # HELPER FUNCTIONS
-def _check_input(x):
-    if not (type(x) is torch.Tensor and len(x.shape) == 3 and x.shape[1] <= 2):
+def _check_input(clips):
+    t = type(clips)
+    if not (t in [torch.Tensor, np.ndarray] and len(clips.shape) == 3 and clips.shape[1] <= 2):
         raise TypeError("Audio input must be a 3-dimensional Tensor of shape (batches, channels, samples).")
+    if t == np.ndarray:
+        clips = torch.from_numpy(clips)
+    return clips
 
 def _extract_audio_features(fe, dataset, ids=None, verbose=False):
     if not isinstance(dataset, MultimodalDataset):
@@ -56,7 +60,7 @@ class AudioExtractor(ABC):
         pass
 
     @abstractmethod
-    def __call__(self, imgs):
+    def __call__(self, imgs, train=False):
         """Extracts features (embeddings) for a batch of audio clips.
 
         Args:
@@ -71,6 +75,16 @@ class AudioExtractor(ABC):
         """Extracts image features (embeddings) for entire dataset."""
 
         return _extract_audio_features(self, dataset, ids, verbose)
+
+    def fit_transform(self, X, y=None):
+        """For sklearn compatibility. (Trains) and calls f.e."""
+
+        return self.__call__(torch.from_numpy(X), train=True)
+
+    def transform(self, X, y=None):
+        """For sklearn compatibility. Calls f.e. (without training)."""
+
+        return self.__call__(torch.from_numpy(X), train=False)
 
     @property
     def modalities(self):
@@ -103,10 +117,10 @@ class OpenL3(AudioExtractor):
         self.hop_size = hop_size
 
 
-    def __call__(self, batch):
+    def __call__(self, batch, train=False):
         clips, sr = batch
         sr = sr[0].item()
-        _check_input(clips)
+        clips = _check_input(clips)
         emb_list = []
         for i in range(clips.shape[0]):
             clip = clips[i, :]

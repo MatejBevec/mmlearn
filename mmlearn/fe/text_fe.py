@@ -27,8 +27,8 @@ TEXT_FE_BATCH_SIZE = 4  # Batch size when extracting features from text
 # HELPER FUNCTIONS
 def _check_input(texts):
     if not (isinstance(texts, Iterable) and len(texts) > 0 and isinstance(texts[0], str)):
-        raise TypeError("Text input must be a list or array of strings.")
-    # Check if first run - maybe move elsewhere?
+        raise TypeError("Text input must be an iterable of strings.")
+    return np.array(texts)
 
 def _extract_text_features(fe, dataset, ids=None, verbose=False):
     if not isinstance(dataset, MultimodalDataset):
@@ -62,14 +62,14 @@ class TextExtractor(ABC):
         pass
 
     @abstractmethod
-    def __call__(self, texts, trained=False):
+    def __call__(self, texts, train=False):
         """Extracts features for a batch of texts.
 
         Args:
             imgs: An (bsize,) array or list of strings.
             trained: In feature extractor that are trainable, this indicates whether to fit the extractor in this call.
                     Use True if using in training step and False othewise. "auto" only fits in first call after init.
-                    In non-trainable, this argument is irrelevant and deafults to False.
+                    If not trainable, this argument is irrelevant and defaults to False.
 
         Returns:
             A batch of embeddings as a (bsize, d) Ndarray.
@@ -80,6 +80,16 @@ class TextExtractor(ABC):
         """Extracts image features (embeddings) for entire dataset."""
         
         return _extract_text_features(self, dataset, ids, verbose)
+
+    def fit_transform(self, X, y=None):
+        """For sklearn compatibility. (Trains) and calls f.e."""
+
+        return self.__call__(torch.from_numpy(X), train=True)
+
+    def transform(self, X, y=None):
+        """For sklearn compatibility. Calls f.e. (without training)."""
+
+        return self.__call__(torch.from_numpy(X), train=False)
 
     @property
     def modalities(self):
@@ -105,7 +115,7 @@ class NGrams(TextExtractor):
         self.pipeline = Pipeline([("union", union), ("norm", Normalizer())])
 
     def __call__(self, texts, train="auto"):
-        _check_input(texts)
+        texts = _check_input(texts)
         if train is False or (train == "auto" and self.trained):
             return self.pipeline.transform(texts).toarray()
         else:
@@ -129,7 +139,7 @@ class WordNGrams(TextExtractor):
         self.pipeline = Pipeline([("word", fe), ("norm", norm)])
 
     def __call__(self, texts, train="auto"):
-        _check_input(texts)
+        texts = _check_input(texts)
         if train is False or (train == "auto" and self.trained):
             return self.pipeline.transform(texts).toarray()
         else:
@@ -148,12 +158,12 @@ class CharNGrams(TextExtractor):
         """
 
         self.trained = False
-        TfidfVectorizer(analyzer="char", ngram_range=n, max_features=max_features)
+        fe = TfidfVectorizer(analyzer="char", ngram_range=n, max_features=max_features)
         norm = Normalizer()
         self.pipeline = Pipeline([("char", fe), ("norm", norm)])
 
     def __call__(self, texts, train="auto"):
-        _check_input(texts)
+        texts = _check_input(texts)
         if train is False or (train == "auto" and self.trained):
             return self.pipeline.transform(texts).toarray()
         else:
@@ -174,7 +184,7 @@ class SentenceBERT(TextExtractor):
         self.fe = SentenceTransformer(model, device=None)
 
     def __call__(self, texts, train=False):
-        _check_input(texts)
+        texts = _check_input(texts)
         return self.fe.encode(texts, show_progress_bar=True,
                                 device=("cuda" if USE_CUDA else "cpu"))
 
@@ -187,7 +197,7 @@ class TextCLIP(TextExtractor):
         self.fe = SentenceTransformer("clip-ViT-B-32")
     
     def __call__(self, texts, train=False):
-        _check_input(texts)
+        texts = _check_input(texts)
         return self.fe.encode(texts, show_progress_bar=False)
 
 
@@ -215,7 +225,7 @@ class Doc2Vec(TextExtractor):
 
 
     def __call__(self, texts, train=False):
-        _check_input(texts)
+        texts = _check_input(texts)
         docs = [text.split(" ") for text in texts]
         return np.array([self.model.infer_vector(doc) for doc in docs])
 

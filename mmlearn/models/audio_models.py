@@ -17,7 +17,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestClassifier
 import scipy.special
 
-from mmlearn.models.base_models import ClsModel, UnimodalSkClassifier
+from mmlearn.models.base_models import PredictionModel, UnimodalSkClassifier
 from mmlearn.models.base_models import prepare_input, check_predicts_proba, get_classifier
 from mmlearn.models import base_models
 from mmlearn.fe import audio_fe
