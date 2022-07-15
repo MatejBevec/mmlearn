@@ -1,9 +1,9 @@
 gitdir==1.2.5
 numpy==1.22.0
-pandas==1.1.5
+pandas==1.4.3
 torch==1.10.1
 torchvision==0.11.2
-scipy==1.5.4
+scipy==1.8.1
 sklearn==0.0
 Pillow==9.0.0
 pytorch-pretrained-vit==0.0.7
@@ -11,4 +11,5 @@ simpletransformers==0.63.3
 TPOT==0.11.7
 gdown==4.4.0
 sentence-transformers==2.1.0
+autoBOTLib==1.19
 
