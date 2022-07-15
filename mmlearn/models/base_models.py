@@ -18,7 +18,7 @@ import sklearn.metrics
 from torch.nn import functional
 from torch.utils.data import DataLoader, TensorDataset
 
-from mmlearn.data import MultimodalDataset
+from mmlearn.data import MultimodalDataset, from_array_dataset
 from mmlearn.util import log_progress, DEVICE
 
 TRAIN_BATCH_SIZE = 32   # Default batch size for training PredictionModel-s
@@ -28,7 +28,10 @@ PRED_BATCH_SIZE = 16    # Default batch size for prediction using PredictionMode
 
 def prepare_input(dataset, ids, model):
     if not isinstance(dataset, MultimodalDataset):
-        raise TypeError("'dataset' must be a MultimodalDataset.")
+        try:
+            dataset = from_array_dataset(dataset)
+        except:
+            raise TypeError(f"'dataset' must be a MultimodalDataset or convertable to one, but is {type(dataset)}")
     if not (isinstance(ids, Iterable) and len(ids) > 0 or ids is None):
         raise TypeError("IDs must be an iterable of integer indices or None")
     if not set(model.modalities).issubset(dataset.modalities):
@@ -37,6 +40,7 @@ def prepare_input(dataset, ids, model):
     if ids is None:
         ids = np.arange(len(dataset))
     return dataset, ids
+
 
 def predicts_proba(model):
     return callable(getattr(model, "predict_proba", None))
@@ -198,11 +202,12 @@ class AutoLogisticRegression(AutoSkClf):
 
 # BASE END-TO-END CLASSIFIERS
 
-class PredictionModel(ABC):
+class PredictionModel(BaseEstimator):
     """Base classification model class.
     
-    A common interface for all models - text-only, image-only and multimodal.
+    A common interface for all models - image, text, audio, video and multimodal.
     Any PredictionModel can be trained on any MultimodalDataset.
+    Subclasses implement the torch Dataset interface, and are compatible with the sklearn ecosystem (with some caveats).
 
     Attributes:
         modalities: A list of strings denoting modalities which this model operates with.
@@ -214,7 +219,7 @@ class PredictionModel(ABC):
         pass
 
     @abstractmethod
-    def train(self, dataset, train_ids):
+    def train(self, dataset, train_ids=None):
         """Train model on given dataset.
         
         Args:
@@ -224,8 +229,8 @@ class PredictionModel(ABC):
         pass
 
     @abstractmethod
-    def predict(self, dataset, test_ids):
-        """Predict target variables on given dataset.
+    def predict(self, dataset, test_ids=None):
+        """Predict target variables on given dataset. Sklearn-compatible if test_ids are not passed.
         
         Args:
             dataset: A MultimodalDataset instance. Usually same as for train().
@@ -236,6 +241,22 @@ class PredictionModel(ABC):
         """
         pass
 
+    def fit(self, dataset, y=None):
+        """A sklearn-compatible wrapper for the train() method.
+        
+        Args:
+            X: Must be a MultimodalDataset instance. Because train_ids are not passed here, X itself should be the train split.
+            y: Since targets are included in X, this arguments is ignored.
+        """
+        self.train(dataset, train_ids=None)
+
+    # def set_params(self, **parameters):
+    #     """Set hyperparameters from dict. For compatibility with sklearn model selection."""
+
+    #     for parameter, value in parameters.items():
+    #         setattr(self, parameter, value)
+    #     return self
+
 
 class RandomClassifier(PredictionModel):
     """Predicts random class for every test instance."""
@@ -243,6 +264,7 @@ class RandomClassifier(PredictionModel):
     def __init__(self, random_state=42, verbose=False):
         self.seed = random_state
         self.verbose = verbose
+        self.modalities = []
     
     def train(self, dataset, train_ids=None):
         dataset, train_ids = prepare_input(dataset, train_ids, self)
@@ -254,12 +276,17 @@ class RandomClassifier(PredictionModel):
         dataset, test_ids = prepare_input(dataset, test_ids, self)
         return np.random.RandomState(seed=self.seed).randint(0, self.n_cls, len(test_ids))
 
+    def predict_proba(self, dataset, test_ids=None):
+        dataset, test_ids = prepare_input(dataset, test_ids, self)
+        return np.random.RandomState(seed=self.seed).rand(len(test_ids))      
+
 
 class MajorityClassifier(PredictionModel):
     """Predicts the most frequent class in training set for every test instance."""
 
     def __init__(self, verbose=False):
         self.verbose = verbose
+        self.modalities = []
 
     def train(self, dataset, train_ids=None):
         dataset, train_ids = prepare_input(dataset, train_ids, self)
@@ -293,12 +320,13 @@ class UnimodalSkClassifier(PredictionModel):
         if not fe:
             raise ValueError("The feature extractor (fe) was not provided as argument.")
         self.fe = fe
-        self.model = get_classifier(clf, verbose=verbose)
+        self.clf = clf
         self.modalities = self.fe.modalities
         self.verbose = verbose
 
-    def train(self, dataset, train_ids):
+    def train(self, dataset, train_ids=None):
         dataset, train_ids = prepare_input(dataset, train_ids, self)
+        self.model = get_classifier(self.clf, verbose=self.verbose)
         log_progress(f"Training {type(self.fe).__name__} + {type(self.model).__name__} classifier model...",
                         verbose=self.verbose)
 
@@ -306,12 +334,12 @@ class UnimodalSkClassifier(PredictionModel):
 
         self.model.fit(features, labels)
 
-    def predict(self, dataset, test_ids):
+    def predict(self, dataset, test_ids=None):
         dataset, test_ids = prepare_input(dataset, test_ids, self)
         features, labels = self.fe.extract_all(dataset, test_ids, verbose=self.verbose)
         return self.model.predict(features)
 
-    def predict_proba(self, dataset, test_ids):
+    def predict_proba(self, dataset, test_ids=None):
         dataset, test_ids = prepare_input(dataset, test_ids, self)
         features, labels = self.fe.extract_all(dataset, test_ids, verbose=self.verbose)
         check_predicts_proba(self.model)

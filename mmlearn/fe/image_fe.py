@@ -50,6 +50,12 @@ def _extract_image_features(fe, dataset, ids=None, verbose=False):
     labels = np.concatenate(labels_list, axis=0)
     return features, labels
 
+def _check_output(out, tensor=False):
+    assert isinstance(out, np.ndarray)
+    if tensor:
+        out = torch.from_numpy(out)   
+    return out
+
 
 
 class ImageExtractor(ABC):
@@ -94,75 +100,87 @@ class ImageExtractor(ABC):
 
 class ResNet(ImageExtractor):
 
-    def __init__(self):
+    def __init__(self, tensor=False):
         """Feature extractor: pretrained ResNet 152 without clf layer."""
         self.model = models.resnet152(pretrained=True)
         self.model.fc = nn.Identity()
         self.model.eval().to(DEVICE)
+        self.tensor = tensor
 
     def __call__(self, imgs, train=False):
         imgs = _check_input(imgs)
-        return self.model(imgs.to(DEVICE)).detach().cpu().numpy()
+        out = self.model(imgs.to(DEVICE)).detach().cpu().numpy()
+        return _check_output(out, self.tensor)
 
 class InceptionV3(ImageExtractor):
 
-    def __init__(self):
+    def __init__(self, tensor=False):
         """Feature extractor: pretrained ResNet 152 without clf layer."""
         self.model = models.inception_v3(pretrained=True)
         self.model.fc = nn.Identity()
         self.model.eval().to(DEVICE)
+        self.tensor = tensor
 
     def __call__(self, imgs, train=False):
         imgs = _check_input(imgs)
-        return self.model(imgs.to(DEVICE)).detach().cpu().numpy()
+        out = self.model(imgs.to(DEVICE)).detach().cpu().numpy()
+        return _check_output(out, self.tensor)
 
 class MobileNetV3(ImageExtractor):
 
-    def __init__(self):
+    def __init__(self, tensor=False):
         """Feature extractor: pretrained ResNet MobileNet V3 Large without clf layer."""
         self.model = models.mobilenet_v3_large(pretrained=True)
         self.model.classifier = nn.Identity()
         self.model.eval().to(DEVICE)
+        self.tensor = tensor
 
     def __call__(self, imgs, train=False):
         imgs = _check_input(imgs)
-        return self.model(imgs.to(DEVICE)).detach().cpu().numpy()
+        out = self.model(imgs.to(DEVICE)).detach().cpu().numpy()
+        return _check_output(out, self.tensor)
 
 class EfficientNet(ImageExtractor):
 
-    def __init__(self):
+    def __init__(self, tensor=False):
         """Feature extractor: pretrained EfficientNet B7 without clf layer."""
         self.model = models.efficientnet_b7(pretrained=True)
         self.model.classifier = nn.Identity()
         self.model.eval().to(DEVICE)
+        self.tensor = tensor
     
     def __call__(self, imgs, train=False):
         imgs = _check_input(imgs)
-        return self.model(imgs.to(DEVICE)).detach().cpu().numpy()
+        out = self.model(imgs.to(DEVICE)).detach().cpu().numpy()
+        return _check_output(out, self.tensor)
 
 class ViT(ImageExtractor):
 
-    def __init__(self):
+    def __init__(self, tensor=False):
         """Feature extractor: pretrained Vision Transformer without clf layer."""
         self.model = pytorch_pretrained_vit.ViT('B_16_imagenet1k', pretrained=True)
         self.model.norm = nn.Identity()
         self.model.fc = nn.Identity()
         self.model.eval().to(DEVICE)
         self.tf = tf.Compose([tf.Resize((384,384)), tf.Normalize(0.5, 0.5)])
+        self.tensor = tensor
 
     def __call__(self, imgs, train=False):
         imgs = _check_input(imgs)
-        return self.model(self.tf(imgs).to(DEVICE)).detach().cpu().numpy()
+        out = self.model(self.tf(imgs).to(DEVICE)).detach().cpu().numpy()
+        return _check_output(out, self.tensor)
 
 class ImageCLIP(ImageExtractor):
 
-    def __init__(self):
+    def __init__(self, tensor=False):
         """Feature extractor: CLIP joint image-text embedding model."""
         self.fe = SentenceTransformer("clip-ViT-B-32")
+        self.tensor = tensor
     
     def __call__(self, imgs, train=False):
         imgs = _check_input(imgs)
-        return self.fe.encode(imgs)
+        out = self.fe.encode(imgs)
+        return _check_output(out, self.tensor)
 
 
 

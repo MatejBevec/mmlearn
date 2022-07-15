@@ -52,6 +52,11 @@ def _extract_text_features(fe, dataset, ids=None, verbose=False):
     labels = np.concatenate(labels_list, axis=0)
     return features, labels
 
+def _check_output(out, tensor=False):
+    assert isinstance(out, np.ndarray)
+    if tensor:
+        out = torch.from_numpy(out)   
+    return out
 
 
 class TextExtractor(ABC):
@@ -98,7 +103,7 @@ class TextExtractor(ABC):
 
 class NGrams(TextExtractor):
 
-    def __init__(self, word_n=(1, 3), char_n=(2, 4), max_features=2000):
+    def __init__(self, word_n=(1, 3), char_n=(2, 4), max_features=2000, tensor=False):
         """Extract TfIdf features from word and character n-grams.
 
         Args:
@@ -108,6 +113,7 @@ class NGrams(TextExtractor):
         """
 
         self.trained = False
+        self.tensor = tensor
         max_features = int(max_features/2)
         word_vec = TfidfVectorizer(ngram_range=word_n, max_features=max_features)
         char_vec = TfidfVectorizer(analyzer="char", ngram_range=char_n, max_features=max_features)
@@ -117,15 +123,17 @@ class NGrams(TextExtractor):
     def __call__(self, texts, train="auto"):
         texts = _check_input(texts)
         if train is False or (train == "auto" and self.trained):
-            return self.pipeline.transform(texts).toarray()
+            out = self.pipeline.transform(texts).toarray()
         else:
             self.trained = True
-            return self.pipeline.fit_transform(texts).toarray()
+            out = self.pipeline.fit_transform(texts).toarray()
+
+        return _check_output(out, self.tensor)
 
 
 class WordNGrams(TextExtractor):
 
-    def __init__(self, n=(1,3), max_features=1000):
+    def __init__(self, n=(1,3), max_features=1000, tensor=False):
         """Extract TfIdf features from word n-grams.
 
         Args:
@@ -134,22 +142,25 @@ class WordNGrams(TextExtractor):
         """
 
         self.trained = False
+        self.tensor = tensor
         fe = TfidfVectorizer(ngram_range=n, max_features=max_features)
         norm = Normalizer()
-        self.pipeline = Pipeline([("word", fe), ("norm", norm)])
+        self.pipeline = Pipeline([("word", fe), ("norm", norm)])  
 
     def __call__(self, texts, train="auto"):
         texts = _check_input(texts)
         if train is False or (train == "auto" and self.trained):
-            return self.pipeline.transform(texts).toarray()
+            out = self.pipeline.transform(texts).toarray()
         else:
             self.trained = True
-            return self.pipeline.fit_transform(texts).toarray()
+            out = self.pipeline.fit_transform(texts).toarray()
+
+        return _check_output(out, self.tensor)
 
 
 class CharNGrams(TextExtractor):
 
-    def __init__(self, n=(2,4), max_features=1000):
+    def __init__(self, n=(2,4), max_features=1000, tensor=False):
         """Extract TfIdf features from character n-grams.
 
         Args:
@@ -158,6 +169,7 @@ class CharNGrams(TextExtractor):
         """
 
         self.trained = False
+        self.tensor = tensor
         fe = TfidfVectorizer(analyzer="char", ngram_range=n, max_features=max_features)
         norm = Normalizer()
         self.pipeline = Pipeline([("char", fe), ("norm", norm)])
@@ -165,51 +177,58 @@ class CharNGrams(TextExtractor):
     def __call__(self, texts, train="auto"):
         texts = _check_input(texts)
         if train is False or (train == "auto" and self.trained):
-            return self.pipeline.transform(texts).toarray()
+            out = self.pipeline.transform(texts).toarray()
         else:
             self.trained = True
-            return self.pipeline.fit_transform(texts).toarray()
+            out = self.pipeline.fit_transform(texts).toarray()
+
+        return _check_output(out, self.tensor)
 
 
 class SentenceBERT(TextExtractor):
 
-    def __init__(self, model='paraphrase-multilingual-mpnet-base-v2'):
+    def __init__(self, model='paraphrase-multilingual-mpnet-base-v2', tensor=False):
         """Extract text features with a pretrained SentenceBERT document embedding model.
         
         Args:
             model: The pretrained BERT model to use. See [TODO] for more details.
         """
 
-        # TODO: change cache folder?
         self.fe = SentenceTransformer(model, device=None)
+        self.tensor = tensor
 
     def __call__(self, texts, train=False):
         texts = _check_input(texts)
-        return self.fe.encode(texts, show_progress_bar=True,
+        out = self.fe.encode(texts, show_progress_bar=False,
                                 device=("cuda" if USE_CUDA else "cpu"))
+        return _check_output(out, self.tensor)
 
 
 class TextCLIP(TextExtractor):
 
-    def __init__(self):
+    def __init__(self, tensor=False):
         """Extract text features with a pretrained CLIP joint document-image embedding model."""
 
         self.fe = SentenceTransformer("clip-ViT-B-32")
+        self.tensor = tensor
     
     def __call__(self, texts, train=False):
         texts = _check_input(texts)
-        return self.fe.encode(texts, show_progress_bar=False)
+        out = self.fe.encode(texts, show_progress_bar=False)
+        return _check_output(out, self.tensor)
 
 
 class Doc2Vec(TextExtractor):
 
-    def __init__(self, train=False, train_data=None, dim=64, window=2, min_count=1):
+    def __init__(self, train=False, train_data=None, dim=64, window=2, min_count=1, tensor=False):
         """Doc2Vec text feature extractor. See base class for details.
 
         Args:
             train_data: An optional list of string documents.
                         Trained on Gensim's "common_texts" if None.
         """
+        
+        self.tensor = tensor
 
         if train_data is None:
             train_data = gensim.test.utils.common_texts
@@ -227,7 +246,8 @@ class Doc2Vec(TextExtractor):
     def __call__(self, texts, train=False):
         texts = _check_input(texts)
         docs = [text.split(" ") for text in texts]
-        return np.array([self.model.infer_vector(doc) for doc in docs])
+        out = np.array([self.model.infer_vector(doc) for doc in docs])
+        return _check_output(out, self.tensor)
 
         
 

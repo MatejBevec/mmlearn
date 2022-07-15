@@ -34,7 +34,7 @@ from mmlearn.util import log_progress, DEVICE, USE_CUDA
 
 
 
-class ImageSkClassifier(UnimodalSkClassifier):
+class TextSkClassifier(UnimodalSkClassifier):
 
     def __init__(self, fe="default", clf="svm_best", verbose=False):
         """Text feature extractor + a scikit-learn classifier.
@@ -46,7 +46,7 @@ class ImageSkClassifier(UnimodalSkClassifier):
         """
         
         fe = textfe.NGrams() if fe == "default" else fe
-        super(self, ImageSkClassifier).__init__(fe=fe, clf=clf, verbose=verbose)
+        super().__init__(fe=fe, clf=clf, verbose=verbose)
 
 
 class BERT(PredictionModel):
@@ -69,7 +69,7 @@ class BERT(PredictionModel):
         self.modalities = ["text"]
         self.verbose = verbose
         
-    def train(self, dataset, train_ids):
+    def train(self, dataset, train_ids=None):
         dataset, train_ids = prepare_input(dataset, train_ids, self)
         log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
 
@@ -94,20 +94,20 @@ class BERT(PredictionModel):
 
         self.model.train_model(train_df, verbose=self.verbose)
 
-    def _predict(self, dataset, test_ids):
+    def _predict(self, dataset, test_ids=None):
         dataset, test_ids = prepare_input(dataset, test_ids, self)
         texts, _ = dataset.get_texts(test_ids)
         pred, raw_outputs = self.model.predict(list(texts))
         return pred, scipy.special.softmax(np.array(raw_outputs), axis=1)
 
-    def predict(self, dataset, test_ids):
+    def predict(self, dataset, test_ids=None):
         return self._predict(dataset, test_ids)[0]
 
-    def predict_proba(self, dataset, test_ids):
+    def predict_proba(self, dataset, test_ids=None):
         return self._predict(dataset, test_ids)[1]
 
 
-class TPOT(PredictionModel):
+class TextTPOT(PredictionModel):
     """A tree-based sklearn AutoML model.
     
     AutoML tool that automatically evolves scikit-learn pipelines based on tree ensemble learners.
@@ -118,7 +118,7 @@ class TPOT(PredictionModel):
         self.modalities = ["text"]
         self.verbose = verbose
 
-    def train(self, dataset, train_ids):
+    def train(self, dataset, train_ids=None):
         dataset, train_ids = prepare_input(dataset, train_ids, self)
         log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
 
@@ -140,12 +140,12 @@ class TPOT(PredictionModel):
 
         self.model.fit(texts[train_ids], labels[train_ids])
 
-    def predict(self, test_ids):
+    def predict(self, test_ids=None):
         dataset, test_ids = prepare_input(dataset, test_ids, self)
         texts, labels = dataset.get_texts(test_ids)
         return self.model.predict(texts)
 
-    def predict_proba(self, test_ids):
+    def predict_proba(self, test_ids=None):
         dataset, test_ids = prepare_input(dataset, test_ids, self)
         texts, labels = dataset.get_texts(test_ids)
         check_predicts_proba(self.model)

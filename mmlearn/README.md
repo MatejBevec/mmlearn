@@ -26,13 +26,31 @@
 - ~~verbose mode~~ ✓
 - ~~models should return probabilites also~~ ✓
 - ~~a multimodal dataset which includes audio~~ ✓
-- research types of early fusion
+- ~~streamline interface type~~ ✓
+- ~~see if sklearn predictor compatibility is possible~~ ✓
+    - it is, did it, not sure if its the right design decision
+- ~~subsample MultimodalDataset with splicing?~~ ✓
+    - again, did it, not sure if correct design decision
+- ~~easily access batches per modality~~ ✓
+- final batch interface
+- ~~what to do with sample rate~~ ✓
 - sound feature extractors |
 - video feature extractors
-- more image models
-- docs from docstrings
-- a multimodal dataset which includes video
+- pin versions
+- a video dataset
+- more image models (2 more end-to-end lets say)
+- better model tuning
+- add text extractors
+- research types of early fusion
+- add multimodal models
 - cut all unnecessary kwargs
+- docs from docstrings
+- devise a task for testers
+- GPU
+- DRY dataset variations
+- model saving capability?
+
+
 
 
 ## Considerations
@@ -41,23 +59,28 @@
   - yes, use full names ✓
 - are mutable default arguments a problem?
   - yes, use "default" string ✓
-- TODO: how many separate pre-configured classifiers should be provided?
 - support for when embedding space or text space is larger than memory?
   - no
-- TODO: get_transformed(fes) in MultiModal dataset?
-- TODO: helper train functions or separate Classifier, NeuralClassifier classes?
+- support regression?
+  - not yet
+- JSON file for settings
+  - not yet
 - is one MultimodalDataset for all modalities clean, or should i split the class?
   - one dataset
-- TODO: JSON file for settings
-- TODO: ! support regression?
-- TODO: should the interface dtype be Ndarray instead of Tensor?
-- TODO: ! exact scikit model interface? (see how skorch does it)
+- should the interface dtype be Ndarray instead of Tensor?
+  - detected input, parametrized output
+- Using external high-level libraries: how many dependencies is too many?
+  - using high-level libraries is OK
+- TODO: get_transformed(fes) in MultiModal dataset?
+- TODO: helper train functions or separate Classifier, NeuralClassifier classes?
 - TODO: is get_texts() slow?
-- TODO: a more elegant way to do verbosity?
-- TODO: is it strange that feature extractor take Tensors on input and output Ndarrays?
-- TODO: using external libraries: how many dependencies is too many??? For example, OpenL3 installs    Tensorflow and more
+- TODO: how many separate pre-configured classifiers should be provided?
 - TODO: MultimodalDataset: break out modality settings into config dicts?
+
+- TODO: ! sklearn-compatible classifier interface? (see how skorch does it)
 - TODO: ! Rethink trainable fes. Problem: you should be able to use them on batches.
+- TODO: ! Where to put sample rate?
+
 
 ## Style Guide
   - import default modules, external libraries, internal modules in this order

@@ -1,4 +1,4 @@
-import os, sys, shutil
+import os, sys, shutil, copy
 from distutils.dir_util import copy_tree
 from typing import Iterable
 import zipfile
@@ -134,7 +134,10 @@ def load_audio(path, sample_rate=16000, mono=True, n_samples=None, normalized=Fa
     if transform:
         clip = transform(clip)
 
-    return clip, sr
+    #HACK
+    clip.sr = sr
+
+    return clip
 
 def load_video(path):
     #TODO
@@ -164,11 +167,11 @@ def _is_data_directory(dir, ds):
             return False
         return True
 
-def _is_torch_multimodal_dataset(dataset):
+def _is_array_multimodal_dataset(dataset):
     has_len = callable(getattr(dataset, "__len__"))
     has_getitem = callable(getattr(dataset, "__getitem__"))
     if not (has_len and has_getitem):
-        log_progress(f"Provided object is not a torch Dataset.", level="warning")
+        log_progress(f"Provided object is not a array-like.", level="warning")
         return False
     example = dataset[0]
     if not(type(example) == dict and "target" in example):
@@ -185,12 +188,17 @@ def _is_torch_multimodal_dataset(dataset):
         return False
     return True
 
+def _check_idx(idx, n):
+    idx_valid = (isinstance(idx, Iterable) and len(idx) > 0 and type(idx[0]) == int)
+    idx = idx if idx_valid else range(0, n)
+    return idx
+
 
 # BASE CLASSES
 
 class MultimodalDataset(Dataset):
 
-    def __init__(self, dir, col=1, frac=None, shuffle=False, header=False, verbose=True,
+    def __init__(self, dir, col=1, frac=None, shuffle=False, header=False, verbose=True, tensor=True,
                     img_size=400,
                     sample_rate=16000, mono=True, n_samples=None):
         """Create a multimodal dataset object from directory.
@@ -207,6 +215,9 @@ class MultimodalDataset(Dataset):
             col: Target class column in target.tsv.
             frac: Choose < 1 to randomly sub-sample loaded dataset.
             shuffle: Randomly shuffle training examples.
+            header: Put True if target.tsv uses a header.
+            verbose: Print progress information.
+            tensor: Return Tensors for images, audio, video if true, else return ndarrays.
             img_size: Height and width for output images.
             sample_rate: The sample rate output audio clips. Resample input if necessary.
                 Keep original sample rate if None.
@@ -220,8 +231,10 @@ class MultimodalDataset(Dataset):
         self.sample_rate = sample_rate
         self.mono = mono
         self.n_samples = n_samples
+        
 
         # Load and process the dataframe
+        self.base_dir = dir
         if not _has_dataset(dir):
             raise FileNotFoundError("Provided 'dir' does not contain dataset in required form.")
 
@@ -253,32 +266,60 @@ class MultimodalDataset(Dataset):
             first_clip, sr = load_audio(first_clip_path, self.sample_rate, self.mono)
             self.n_samples = first_clip.shape[1]
 
+        self.loaders = {
+            "image": self._limage,
+            "text": self._ltext,
+            "audio": self._laudio,
+            "video": self._lvideo,
+        }
+        self.loaders = {m: self.loaders[m] for m in self.loaders if self.mods[m]}
+
+    def _limage(self, i):
+        id = self.df.iloc[i, 0]
+        return load_image(os.path.join(self.data_dirs["image"], id + self.exts["image"]),
+                                h=self.h, w=self.h)
+
+    def _ltext(self, i):
+        id = self.df.iloc[i, 0]
+        return load_text(os.path.join(self.data_dirs["text"], id + self.exts["text"]))
+
+    def _laudio(self, i):
+        id = self.df.iloc[i, 0]
+        return load_audio(os.path.join(self.data_dirs["audio"], id + self.exts["audio"]),
+                                sample_rate=self.sample_rate, mono=self.mono, n_samples=self.n_samples)
+
+    def _lvideo(self, i):
+        id = self.df.iloc[i, 0]
+        return load_video(os.path.join(self.data_dirs["video"], id + self.exts["video"]))
 
     def __len__(self):
         return self.df.shape[0]
 
     def __getitem__(self, i):
-        id = self.df.iloc[i, 0]
+        # IS THIS A GOOD IDEA?
+        if isinstance(i, slice):
+            return self.sample(i)
+
         example = {}
 
-        if self.mods["image"]:
-            img = load_image(os.path.join(self.data_dirs["image"], id + self.exts["image"]),
-                                h=self.h, w=self.h)
-            example["image"] = img
-        if self.mods["text"]:
-            text = load_text(os.path.join(self.data_dirs["text"], id + self.exts["text"]))
-            example["text"] = text
-        if self.mods["audio"]:
-            audio = load_audio(os.path.join(self.data_dirs["audio"], id + self.exts["audio"]),
-                                sample_rate=self.sample_rate, mono=self.mono, n_samples=self.n_samples)
-            example["audio"] = audio
-        if self.mods["video"]:
-            video = load_video(os.path.join(self.data_dirs["video"], id + self.exts["video"]))
-            example["video"] = video
+        # Load file for every modality
+        for m in self.loaders:
+            example[m] = self.loaders[m](i)
 
         target = self.targets[i] # targets are indices, self.classes[target] to get the string
         example["target"] = target
         return example
+
+    def __str__(self):
+        st = "\nMultimodalDataset:\n\n"
+        st += f"Source dir: {self.base_dir}\n"
+        st += f"Size: {len(self)}\n"
+        st += f"Modalities: {self.modalities}\n"
+        cl = {i: self.classes[i] for i in range(len(self.classes))}
+        st += f"Classes: {cl}\n\n"
+        st += f"{self.df}"
+        return st
+
 
     def toggle_modalities(self, dict):
         """Enable or disable modalities to return. Use to prevent loading unused data.
@@ -291,31 +332,137 @@ class MultimodalDataset(Dataset):
                 log_progress(f"Cannot enable a modality ({modality}) that was not provided.", level="warning")
             self.mods[modality] = dict[modality]
 
-    def shuffle(self, seed=None):
-        """Randomly shuffle the dataset in place."""
-        perm = np.random.permutation(len(self))
-        self.df = self.df.iloc[perm, :]
-        self.targets = self.targets[perm]
+    def clone(self):
+        return copy.deepcopy(self)
 
-    def get_texts(self, *args):
-        """Get (a selection of) texts and targets in dataset at once.
+
+    def shuffle(self, seed=None):
+        """Return a randomly shuffled copy of the dataset."""
+        perm = np.random.permutation(len(self))
+        cl = self.clone()
+        cl.df = self.df.iloc[perm, :]
+        cl.targets = self.targets[perm]
+        return cl
+
+    def sample(self, idx):
+        """Return a copy of dataset, sampled according to indices in idx."""
+        cl = self.clone()
+        cl.df = self.df.iloc[idx, :]
+        cl.targets = self.targets[idx]
+        return cl
+
+    def get_data(self, modalities, idx, tensor=True, keep_dict=False, target=True):
+        """Get (a selection of) examples in chosen modalities (and targets) at once.
+            Returns a dict of form ({"modality": data}, targets), the same as a DataLoader batch.
+            Note that for most datasets, all images/audio/videos will not fit in memory.
+            Using MultimodalDataset with a DataLoader is preferred.
 
         Args:
-            ids: An optional list of ids to retrieve.
+            modalities: A list of strings representing the modalities to retrieve. All if None.
+            idx: An array-like of indices to retrieve.
+            tensor: If True, array-like data is returned as Tensors. If False, data is returned as ndarrays.
+            keep_dict: If False, the wrapping dict is omitted in case of single modality. Only the data is returned.
+            target: If True, target variables are returned in a tuple.
 
-        Returns: A tuple (texts, targets) of Ndarrays
+        Returns: A (data:dict, targets) tuple if target is True, data:dict otherwise.
         """
         
-        texts, targets = [], []
-        ids_valid = (len(args) > 0 and isinstance(args[0], Iterable) and len(args[0]) > 0)
-        selection = args[0] if ids_valid else range(0, len(self))
+        if modalities is None:
+            modalities = self.modalities
 
-        for i in selection:
-            id = self.df.iloc[i, 0]
-            text = load_text(os.path.join(self.data_dirs["text"], id + ".txt"))
-            texts.append(text)
-            targets.append(self.targets[i])
-        return np.array(texts), np.array(targets)
+        idx = _check_idx(idx, len(self))
+
+        data = {}
+        for m in modalities:
+            if self.mods[m]:
+                data[m] = []
+                for i in idx:
+                    file = self.loaders[m](i)
+                    data[m].append(file)
+        
+        for m in data:
+            if tensor:
+                data[m] = data[m] if m == "text" else torch.stack(data[m], dim=0)
+            else:
+                np.stack(data[m], axis=0)
+        
+        if not keep_dict and len(data) == 1:
+            data = data[list(data.keys())[0]]
+
+        out = data
+        if target:
+            out = (out, self.get_targets(idx))
+        return out
+
+    def get_images(self, idx=None, tensor=True, target=True):
+        """Get (a selection of) images (and targets).
+            Note that for most datasets, all images won't fit in memory.
+            Using MultimodalDataset with a DataLoader is preferred.
+
+        Args:
+            idx: An optional list of ids to retrieve. All if None.
+            tensor: If True, image batch is returned as Tensor. If False, image batch is returned as ndarray.
+            target: If True, target variables are returned in a tuple.
+        
+        Returns: A (images, targets) tuple if target is True, images otherwise.
+        """
+
+        return self.get_data(["image"], idx, tensor=tensor, keep_dict=False)
+
+    def get_texts(self, idx=None, tensor=True, target=True):
+        """Get (a selection of) texts (and targets).
+
+        Args:
+            idx: An optional list of ids to retrieve. All if None.
+            tensor: If True, texts batch is returned as Tensor. If False, text batch is returned as ndarray.
+            target: If True, target variables are returned in a tuple.
+        
+        Returns: A (texts, targets) tuple if target is True, texts otherwise.
+        """
+
+        return self.get_data(["text"], idx, tensor=tensor, keep_dict=False)
+
+    def get_audio(self, idx=None, tensor=True, target=True):
+        """Get (a selection of) audio clips (and targets).
+
+        Args:
+            idx: An optional list of ids to retrieve. All if None.
+            tensor: If True, audio batch is returned as Tensor. If False, audio batch is returned as ndarray.
+            target: If True, target variables are returned in a tuple.
+        
+        Returns: A (clips, targets) tuple if target is True, clips otherwise.
+        """
+
+        return self.get_data(["audio"], idx, tensor=tensor, keep_dict=False)
+
+    def get_videos(self, idx=None, tensor=True, target=True):
+        """Get (a selection of) videos (and targets).
+
+        Args:
+            idx: An optional list of ids to retrieve. All if None.
+            tensor: If True, video batch is returned as Tensor. If False, video batch is returned as ndarray.
+            target: If True, target variables are returned in a tuple.
+        
+        Returns: A (clips, targets) tuple if target is True, clips otherwise.
+        """
+
+        return self.get_data(["video"], idx, tensor=tensor, keep_dict=False)
+
+    def get_targets(self, idx=None, tensor=True):
+        """ Get (a selection of) texts and targets in dataset at once.
+
+        Args:
+            ids: An optional list of ids to retrieve. Retrieve all if None.
+
+        Returns: An Ndarray.
+        """
+
+        idx = _check_idx(idx, len(self))
+        targets = self.targets[idx]
+        if tensor:
+            targets = torch.from_numpy(targets)
+        return targets
+
 
     @property
     def names(self):
@@ -334,27 +481,28 @@ class MultimodalDataset(Dataset):
         return [m for m in self.mods if self.mods[m]]
 
 
-class TorchMultimodalDataset(MultimodalDataset):
+class ArrayMultimodalDataset(MultimodalDataset):
 
-    def __init__(self, torch_dataset, img_size=400, frac=None, shuffle=False):
+    def __init__(self, array_dataset, img_size=400, frac=None, shuffle=False):
         """Create a MultimodalDataset from a PyTorch Dataset.
-            See data.from_torch_dataset().
+            See data.from_array_dataset().
         """
     
-        if not _is_torch_multimodal_dataset(torch_dataset):
+        if not _is_array_multimodal_dataset(array_dataset):
             raise TypeError("Provided is not a valid multimodal torch Dataset.")
 
-        self.torch_dataset = torch_dataset
-        targets = [torch_dataset[i]["target"] for i in range(len(torch_dataset))]
+        self.array_dataset = array_dataset
+        targets = [array_dataset[i]["target"] for i in range(len(array_dataset))]
         names = [str(i) for i in range(len(targets))]
         self.df = pd.DataFrame({0: names, 1: targets})
+        self.base_dir = None
 
         if frac:
             self.df = self.df.sample(frac=frac)
         if shuffle:
             self.shuffle()
 
-        example_keys = list(torch_dataset[0].keys())
+        example_keys = list(array_dataset[0].keys())
         self.av_mods = {m: m in example_keys for m in ["image", "text", "audio", "video"]}
         self.mods = self.av_mods.copy()
 
@@ -362,49 +510,42 @@ class TorchMultimodalDataset(MultimodalDataset):
         self.classes, self.targets = np.unique(self.df.iloc[:,1], return_inverse=True)
         self.n_cls = len(self.classes)
 
-    def __getitem__(self, i):
-        id = self.df.iloc[i, 0]
-        example = self.torch_dataset[id]
-        example = {m: example[m] for m in example if m in self.mods}
-        
-        return example
+        self.loaders = {
+            "image": self._limage,
+            "text": self._ltext,
+            "audio": self._laudio,
+            "video": self._lvideo,
+        }
+        self.loaders = {m: self.loaders[m] for m in self.loaders if self.mods[m]}
 
-    def get_texts(self, *args):
-        """Get (a selection of) text and targets in dataset at once.
+    def _limage(self, i):
+        return self.array_dataset[i]["image"]
 
-        Args:
-            ids: An optional list of ids to retrieve.
+    def _ltext(self, i):
+        return self.array_dataset[i]["text"]
 
-        Returns: A tuple (texts, targets) of Ndarrays.
-        """
+    def _laudio(self, i):
+        return self.array_dataset[i]["audio"]
 
-        texts, targets = [], []
-        ids_valid = (len(args) > 0 and isinstance(args[0], Iterable) and len(args[0]) > 0)
-        selection = args[0] if ids_valid else range(0, len(self))    
-
-        for i in selection:
-            example = self.torch_dataset[i]
-            texts.append(example["text"])
-            targets.append(example["target"])
-        return np.array(texts), np.array(targets)   
+    def _lvideo(self, i):
+        return self.array_dataset[i]["video"]
 
 
-def from_torch_dataset(torch_dataset, img_size=400, frac=None, shuffle=False):
+def from_array_dataset(array_dataset, img_size=400, frac=None, shuffle=False):
     """Create a MultimodalDataset from a PyTorch Dataset.
     Args:
-        torch_dataset: A torch Dataset object which returns a dictionary in __getitem__.
+        array_dataset: A array Dataset object which returns a dictionary in __getitem__.
             The returned dictionary should be a subset of {"image": Tensor, "text": String,
             "audio": Tensor, "video": Tensor, "target": int}.
         frac: Choose < 1 to randomly sub-sample loaded dataset.
         shuffle: Randomly shuffle training examples.
 
-    Returns: A TorchMultimodalDataset (subclass of MultimodalDataset).
+    Returns: A TorchMultimodalDataset, subclass of MultimodalDataset.
     """
 
-    return TorchMultimodalDataset(torch_dataset, img_size=img_size, frac=frac, shuffle=shuffle)
+    return ArrayMultimodalDataset(array_dataset, img_size=img_size, frac=frac, shuffle=shuffle)
 
-    
-    
+
 
 
 # INCLUDED MULTIMODAL DATASETS

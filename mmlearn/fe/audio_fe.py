@@ -23,7 +23,7 @@ AUDIO_FE_BATCH_SIZE = 4   # Batch size when extracting features from images
 def _check_input(clips):
     t = type(clips)
     if not (t in [torch.Tensor, np.ndarray] and len(clips.shape) == 3 and clips.shape[1] <= 2):
-        raise TypeError("Audio input must be a 3-dimensional Tensor of shape (batches, channels, samples).")
+        raise TypeError("Audio input must be a 3-dimensional Tensor or ndarray of shape (batches, channels, samples).")
     if t == np.ndarray:
         clips = torch.from_numpy(clips)
     return clips
@@ -50,6 +50,12 @@ def _extract_audio_features(fe, dataset, ids=None, verbose=False):
     labels = np.concatenate(labels_list, axis=0)
     return features, labels
 
+def _check_output(out, tensor=False):
+    assert isinstance(out, np.ndarray)
+    if tensor:
+        out = torch.from_numpy(out)   
+    return out
+
 
 
 class AudioExtractor(ABC):
@@ -60,11 +66,18 @@ class AudioExtractor(ABC):
         pass
 
     @abstractmethod
-    def __call__(self, imgs, train=False):
+    def __call__(self, clips, train=False, hop_length="auto", win_length="auto", combine="mean"):
         """Extracts features (embeddings) for a batch of audio clips.
 
         Args:
             clips: A batch of audio clips as a (bsize, 1 or 2, samples) Tensor.
+            train: Whether to fit a trainable model before calling. Irrelevant if not trainable.
+            hop_length: Most audio models embed short windows of the input clip separately.
+                    This parameter sets the distance between embedding windows, if possible. Set to "auto" to use defaults.
+            win_length: This parameter sets the width of the embedding window, if possible. Set to "auto" to use defaults.
+            combine: Whether to combine window embeddings into one vector, representing the entire input clip.
+                    Set to "mean" to return the average of window embeddings as a (bsize, dim) matrix.
+                    Set to None to perform no combination and return window embeddings as a (bsize, n_windows, dim) matrix.
 
         Returns:
             A batch of embeddings as a (bsize, d) Ndarray.
@@ -97,16 +110,17 @@ class OpenL3(AudioExtractor):
     OpenL3 is a variation and implementation of the L3-Net self-supervised join audio-image embedding.
     See https://arxiv.org/abs/1705.08168.
     The model is trained to predict whether an image and audio clip are from the same video segment.
-    The OpenL3 variation is specialized for music and trained accordingly. See https://github.com/marl/openl3.
+    The OpenL3 variation is specialized for music. See https://github.com/marl/openl3.
     """
 
-    def __init__(self, input="mel128", weights="music", dim=512, hop_size=2):
+    def __init__(self, input="mel128", weights="music", dim=512, hop_size=2, combine="mean", tensor=False):
         """
         Args:
             input: Type of spectrogram to use as input features. Options are: TODO
             weights: The pretrained model of choice. Options are: TODO
             dim: Output embedding size.
             hop_size: OpenL3 embeds a 1s clip every hop_size seconds and takes the mean as final output.
+            tensor: Output Tensor instead of ndarray. 
         """
 
         self.model = openl3.models.load_audio_embedding_model(
@@ -115,21 +129,25 @@ class OpenL3(AudioExtractor):
             embedding_size=dim
         )
         self.hop_size = hop_size
+        self.combine = combine
+        self.tensor = tensor
 
 
-    def __call__(self, batch, train=False):
-        clips, sr = batch
-        sr = sr[0].item()
+    def __call__(self, clips, train=False):
+        sr = clips.sr
+        #sr = sr[0].item()
         clips = _check_input(clips)
         emb_list = []
         for i in range(clips.shape[0]):
             clip = clips[i, :]
             clip = clip.transpose(1, 0).numpy()
-            emb_batch, ts = openl3.get_audio_embedding(clip, sr, 
+            emb, ts = openl3.get_audio_embedding(clip, sr, 
                                 model=self.model, hop_size=self.hop_size, verbose=False)
-            emb = torch.mean(torch.from_numpy(emb_batch), dim=0, keepdim=False)
+            if self.combine == "mean":
+                emb = np.mean(emb, axis=0, keepdims=False)
             emb_list.append(emb)
 
-        return torch.stack(emb_list, dim=0)
+        out = np.stack(emb_list, axis=0)
+        return _check_output(out, self.tensor)
 
 

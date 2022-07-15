@@ -27,7 +27,7 @@ class ImageNeuralClassifier(PredictionModel):
 
     def __init__(self, fe="default", verbose=False):
         """Image feature extractor + a pytorch NN classifier.
-            The classifier is a 2-layer fully-connected network with ReLU act., Adam optim. and cross-entropy loss. 
+            The classifier is a 2-layer fully-connected network with ReLU activation, Adam optimizer and cross-entropy loss. 
         
         Args:
             fe: A feature extractor model from 'fe.image'. Default is MobileNetV3.
@@ -37,7 +37,7 @@ class ImageNeuralClassifier(PredictionModel):
         self.modalities = ["image"]
         self.verbose = verbose
 
-    def train(self, dataset, train_ids):
+    def train(self, dataset, train_ids=None):
         dataset, train_ids = prepare_input(dataset, train_ids, self)
         log_progress(f"Training {type(self.fe).__name__} fe + NN classifier model...", verbose=self.verbose)
 
@@ -62,10 +62,10 @@ class ImageNeuralClassifier(PredictionModel):
         ft_dataset = TensorDataset(torch.from_numpy(features), torch.from_numpy(labels))
         return base_models.predict_torch_nn(self.model, ft_dataset)
 
-    def predict(self, dataset, test_ids):
-        return self._predict(dataset,test_ids)[0]
+    def predict(self, dataset, test_ids=None):
+        return self._predict(dataset, test_ids)[0]
 
-    def predict_proba(self, dataset, test_ids):
+    def predict_proba(self, dataset, test_ids=None):
         return self._predict(dataset, test_ids)[1]
 
 
@@ -81,7 +81,7 @@ class ImageSkClassifier(UnimodalSkClassifier):
         """
         
         fe = imgfe.MobileNetV3() if fe == "default" else fe
-        super(self, ImageSkClassifier).__init__(fe=fe, clf=clf, verbose=verbose)
+        super().__init__(fe=fe, clf=clf, verbose=verbose)
 
 
 class TunedMobileNetV3(PredictionModel):
@@ -93,12 +93,14 @@ class TunedMobileNetV3(PredictionModel):
         Args:
             epochs: Number of epochs to train for fune-tuning.
         """
-        self.model = models.mobilenet_v3_large(pretrained=True)
+
         self.epochs = epochs
         self.modalities = ["image"]
         self.verbose = verbose
     
-    def train(self, dataset, train_ids):
+    def train(self, dataset, train_ids=None):
+        dataset, train_ids = prepare_input(dataset, train_ids, self)
+        self.model = models.mobilenet_v3_large(pretrained=True)
         self.n_cls = len(dataset.classes)
         self.model.classifier = nn.Linear(960, self.n_cls)
         self.model.to(DEVICE)
@@ -152,8 +154,8 @@ class TunedMobileNetV3(PredictionModel):
             prob[i*bs : i*bs+imgs.shape[0], :] = out
         return pred.astype(int), scipy.special.softmax(prob, axis=1)
 
-    def predict(self, dataset, test_ids):
+    def predict(self, dataset, test_ids=None):
         return self._predict(dataset, test_ids)[0]
 
-    def predict_proba(self, dataset, test_ids):
+    def predict_proba(self, dataset, test_ids=None):
         return self._predict(dataset, test_ids)[1]
