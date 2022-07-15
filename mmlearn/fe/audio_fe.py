@@ -14,7 +14,7 @@ import openl3
 from tqdm import tqdm
 
 from mmlearn.data import MultimodalDataset
-from mmlearn.util import log_progress, DEVICE, USE_CUDA
+from mmlearn.util import log_progress, DEVICE, USE_CUDA, SAMPLE_RATE
 
 AUDIO_FE_BATCH_SIZE = 4   # Batch size when extracting features from images
 
@@ -134,7 +134,7 @@ class OpenL3(AudioExtractor):
 
 
     def __call__(self, clips, train=False):
-        sr = clips.sr
+        sr = SAMPLE_RATE
         #sr = sr[0].item()
         clips = _check_input(clips)
         emb_list = []

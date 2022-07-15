@@ -24,7 +24,7 @@ from mmlearn.fe import audio_fe
 from mmlearn.util import log_progress, DEVICE, REG_PARAM_RANGE
 
 
-class ImageSkClassifier(UnimodalSkClassifier):
+class AudioSkClassifier(UnimodalSkClassifier):
 
     def __init__(self, fe="default", clf="svm_best", verbose=False):
         """Audio feature extractor + a scikit-learn classifier.
@@ -36,4 +36,4 @@ class ImageSkClassifier(UnimodalSkClassifier):
         """
         
         fe = audio_fe.OpenL3() if fe == "default" else fe
-        super(self, ImageSkClassifier).__init__(fe=fe, clf=clf, verbose=verbose)
+        super().__init__(fe=fe, clf=clf, verbose=verbose)

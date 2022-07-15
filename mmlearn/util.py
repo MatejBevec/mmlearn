@@ -6,6 +6,7 @@ from torch import device as ptdevice
 # Training param defaults
 REG_PARAM_RANGE = [0.1, 0.5, 1, 5, 10, 20, 50, 100, 500]
 MAX_ITER_SKLEARN = 100000
+SAMPLE_RATE = 16000
 
 # Paths
 SAVE_DIR = "pers"
