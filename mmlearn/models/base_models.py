@@ -291,7 +291,7 @@ class MajorityClassifier(PredictionModel):
     def train(self, dataset, train_ids=None):
         dataset, train_ids = prepare_input(dataset, train_ids, self)
         log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
-        _, labels = dataset.get_texts()
+        _, labels = dataset.get_texts(tensor=False)
         self.mode_cls = scipy.stats.mode(labels[train_ids])[0]
         self.classes, self.freqs = np.unique(labels[train_ids], return_counts=True)
         self.proba = scipy.special.softmax(self.freqs)

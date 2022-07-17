@@ -140,11 +140,18 @@ if __name__ == "__main__":
     ]
 
     #print(spotify_dataset.get_audio([1,2,3]))
+    
+    # audio_model = audio_models.AudioSkClassifier()
+    # eval.holdout(spotify_dataset, audio_model)
 
-    dl = DataLoader(spotify_dataset, batch_size=2, shuffle=True)
-    batch = next(iter(dl))
-    print(batch["audio"][0].shape)
-    print(spotify_dataset[0]["audio"].sr)
+    #-----------
+    # texts, targets = dataset2.get_texts(tensor=False)
+    # fe = text_fe.CombineFeatures([text_fe.Doc2Vec(), text_fe.BERTExtractor()])
+    # ft = fe(texts)
+    # print(ft)
+    autobot = text_models.AutoBOT()
+    eval.holdout(dataset2, model)
+
 
     # gs = GridSearchCV(
     #     model2,

@@ -23,7 +23,7 @@ METRICS = {
 def _get_predictions(dataset, model, train_ids, test_ids):
     model.train(dataset, train_ids)
     pred = model.predict(dataset, test_ids)
-    _, targets = dataset.get_texts(test_ids)
+    targets = dataset.get_targets(test_ids, tensor=False)
     return targets, pred
 
 def _dataframes_to_dict(datasets, models, all_results):

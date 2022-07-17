@@ -189,7 +189,8 @@ def _is_array_multimodal_dataset(dataset):
     return True
 
 def _check_idx(idx, n):
-    idx_valid = (isinstance(idx, Iterable) and len(idx) > 0 and type(idx[0]) == int)
+    idx_valid = (isinstance(idx, Iterable) and len(idx) > 0)
+    # TODO: always return ndarray
     idx = idx if idx_valid else range(0, n)
     return idx
 

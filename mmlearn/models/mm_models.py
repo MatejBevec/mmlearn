@@ -58,7 +58,7 @@ class LateFusion(PredictionModel):
 
         self.image_model.train(dataset, train_ids)
         self.text_model.train(dataset, train_ids)
-        _, labels = dataset.get_texts(train_ids)
+        _, labels = dataset.get_texts(train_ids, tensor=False)
 
         # TODO: Stacking
         if self.combine == "stack":

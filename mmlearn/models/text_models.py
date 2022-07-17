@@ -109,9 +109,9 @@ class BERT(PredictionModel):
 
 
 class TextTPOT(PredictionModel):
-    """A tree-based sklearn AutoML model.
+    """N-gram features into TPOT, a tree-based sklearn AutoML model.
     
-    AutoML tool that automatically evolves scikit-learn pipelines based on tree ensemble learners.
+    POT is anAutoML tool that automatically evolves scikit-learn pipelines based on tree ensemble learners.
     """
 
     def __init__(self, random_state=42, verbose=False):
@@ -170,6 +170,7 @@ class AutoBOT(PredictionModel):
         self.device = device
         self.latent_dim = latent_dim
         self.upsample = upsample
+        self.random_state = random_state
 
     def train(self, dataset, train_ids=None):
         dataset, train_ids = prepare_input(dataset, train_ids, self)
@@ -186,7 +187,7 @@ class AutoBOT(PredictionModel):
             device=self.device,
             latent_dim=self.latent_dim,
             upsample=self.upsample,
-            random_state=self.random_state,
+            random_seed=self.random_state,
             verbose=1 if self.verbose else 0
         )
 
@@ -195,7 +196,8 @@ class AutoBOT(PredictionModel):
     def predict(self, test_ids=None):
         dataset, test_ids = prepare_input(dataset, test_ids, self)
         texts, labels = dataset.get_texts(test_ids, tensor=False)
-        return self.model.predict(texts)
+        pred = self.model.predict(texts)
+        return(pred)
 
     def predict_proba(self, test_ids=None):
         dataset, test_ids = prepare_input(dataset, test_ids, self)
