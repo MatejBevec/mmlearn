@@ -391,7 +391,7 @@ class MultimodalDataset(Dataset):
 
         out = data
         if target:
-            out = (out, self.get_targets(idx))
+            out = (out, self.get_targets(idx, tensor=tensor))
         return out
 
     def get_images(self, idx=None, tensor=True, target=True):
@@ -453,6 +453,7 @@ class MultimodalDataset(Dataset):
 
         Args:
             ids: An optional list of ids to retrieve. Retrieve all if None.
+            tensor: If True, returns a list of targets, else return an ndarray.
 
         Returns: An Ndarray.
         """
@@ -460,7 +461,7 @@ class MultimodalDataset(Dataset):
         idx = _check_idx(idx, len(self))
         targets = self.targets[idx]
         if tensor:
-            targets = torch.from_numpy(targets)
+            targets = list(targets)
         return targets
 
 

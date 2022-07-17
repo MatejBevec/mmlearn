@@ -43,13 +43,19 @@
 - add text extractors
 - research types of early fusion
 - add multimodal models
+- kwargs handling for complex third-party models?
 - cut all unnecessary kwargs
 - docs from docstrings
 - devise a task for testers
 - GPU
-- DRY dataset variations
+- ~~DRY dataset variations~~ ✓
 - model saving capability?
-
+- trainable fe question
+- import external lib in model inits
+- standardize fe attribute naming
+- FEs must fit targets to correct form on input
+- later: feature selection at extractor level?
+- where to put generic features extractors
 
 
 

@@ -26,6 +26,7 @@ import torch
 from simpletransformers.classification import ClassificationModel
 from tpot import TPOTClassifier
 from sentence_transformers import SentenceTransformer
+import autoBOTLib
 
 from mmlearn.models.base_models import PredictionModel, UnimodalSkClassifier
 from mmlearn.models.base_models import prepare_input, check_predicts_proba, get_classifier
@@ -74,7 +75,7 @@ class BERT(PredictionModel):
         log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
 
         self.dataset = dataset
-        texts, labels = dataset.get_texts(train_ids)
+        texts, labels = dataset.get_texts(train_ids, tensor=False)
         train_df = pd.DataFrame()
         train_df["text"] = texts
         train_df["labels"] = labels
@@ -96,7 +97,7 @@ class BERT(PredictionModel):
 
     def _predict(self, dataset, test_ids=None):
         dataset, test_ids = prepare_input(dataset, test_ids, self)
-        texts, _ = dataset.get_texts(test_ids)
+        texts, _ = dataset.get_texts(test_ids, tensor=False)
         pred, raw_outputs = self.model.predict(list(texts))
         return pred, scipy.special.softmax(np.array(raw_outputs), axis=1)
 
@@ -123,7 +124,7 @@ class TextTPOT(PredictionModel):
         log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
 
         self.dataset = dataset
-        texts, labels = dataset.get_texts(train_ids)
+        texts, labels = dataset.get_texts(train_ids, tensor=False)
 
         max_features = 1000
         vectorizer = TfidfVectorizer(ngram_range=(1, 3), max_features=max_features)
@@ -142,11 +143,62 @@ class TextTPOT(PredictionModel):
 
     def predict(self, test_ids=None):
         dataset, test_ids = prepare_input(dataset, test_ids, self)
-        texts, labels = dataset.get_texts(test_ids)
+        texts, labels = dataset.get_texts(test_ids, tensor=False)
         return self.model.predict(texts)
 
     def predict_proba(self, test_ids=None):
         dataset, test_ids = prepare_input(dataset, test_ids, self)
-        texts, labels = dataset.get_texts(test_ids)
+        texts, labels = dataset.get_texts(test_ids, tensor=False)
+        check_predicts_proba(self.model)
+        return self.model.predict_proba(texts)
+
+
+class AutoBOT(PredictionModel):
+    """AutoBOT: representation evolution AutoML model.
+    
+    AutoML tool where an evolutionary algorithm automates the representation selection process.
+    See the paper "autoBOT: evolving neuro‑symbolic representations for explainable low resource text classifcation" for more details.
+    """
+
+    def __init__(self, time_constraint=1, num_cpu="all", device="cpu",
+                latent_dim=512, upsample=False, random_state=42, verbose=False):
+        self.seed = random_state
+        self.modalities = ["text"]
+        self.verbose = verbose
+        self.time_constraint = time_constraint
+        self.num_cpu = num_cpu
+        self.device = device
+        self.latent_dim = latent_dim
+        self.upsample = upsample
+
+    def train(self, dataset, train_ids=None):
+        dataset, train_ids = prepare_input(dataset, train_ids, self)
+        log_progress(f"Training {type(self).__name__} model...", verbose=self.verbose)
+
+        self.dataset = dataset
+        texts, labels = dataset.get_texts(train_ids, tensor=False)
+
+        self.model = autoBOTLib.GAlearner(
+            texts,
+            labels,
+            time_constraint=self.time_constraint,
+            num_cpu=self.num_cpu,
+            device=self.device,
+            latent_dim=self.latent_dim,
+            upsample=self.upsample,
+            random_state=self.random_state,
+            verbose=1 if self.verbose else 0
+        )
+
+        self.model.evolve()
+
+    def predict(self, test_ids=None):
+        dataset, test_ids = prepare_input(dataset, test_ids, self)
+        texts, labels = dataset.get_texts(test_ids, tensor=False)
+        return self.model.predict(texts)
+
+    def predict_proba(self, test_ids=None):
+        dataset, test_ids = prepare_input(dataset, test_ids, self)
+        texts, labels = dataset.get_texts(test_ids, tensor=False)
         check_predicts_proba(self.model)
         return self.model.predict_proba(texts)
