@@ -59,10 +59,10 @@ if __name__ == "__main__":
         {"text": "fdsafsdasfddf", "target": 0},
     ]
 
-    latef = mm_models.LateFusion(combine="max")
+    latef = mm_models.LateFusion(combine="stack", stacking_clf="lr_best")
     earlyf = mm_models.NaiveEarlyFusion(text_fe=text_fe.NGrams(), clf="lr_best")
     models = {"majority": model, "text": model2,
-            "late fusion": latef, "early fusion": earlyf}
+            "late fusion": latef}#, "early fusion": earlyf}
     results = eval.holdout_many(dataset2, models, dataframe=True)
     pprint.pprint(results)
 

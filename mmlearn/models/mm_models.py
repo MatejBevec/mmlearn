@@ -36,20 +36,24 @@ from mmlearn.util import log_progress, DEVICE, USE_CUDA, REG_PARAM_RANGE
 
 class LateFusion(PredictionModel):
 
-    def __init__(self, image_model="default", text_model="default", combine="max", verbose=False):
+    def __init__(self, image_model="default", text_model="default", combine="max", stacking_clf="lr", verbose=False):
         """
-        Multimodal late fusion model. Combine predictions of an image model and a text model.
+        Multimodal late fusion model. Combine predictions (probabilities) of an image model and a text model.
         The image and text model must implement predict_proba.
 
         Args:
             image_model: An image classifier from models.image. Default is ImageSkClassifier.
             text_model: A text classifier from models.text. Default is TextSkClassifier.
             combine: Method for combining predictions. "max", "sum", or "stack".
+                    "stack" trains a meta classifier to predict targets from output probabilites.
+            stacking_clf: The sklearn-style classifier to use for final probability stacking.
+                            Only relevant if combine == "stack". Must implement predict_proba.
         """
 
         self.modalities = ["image", "text"]
         self.verbose = verbose
         self.combine = combine
+        self.stacking_clf = stacking_clf
 
         self.image_model = image_models.ImageSkClassifier(clf="lr_best") if image_model == "default" else image_model
         self.text_model = text_models.TextSkClassifier(clf="lr_best") if text_model == "default" else text_model
@@ -58,15 +62,22 @@ class LateFusion(PredictionModel):
 
     def train(self, dataset, train_ids=None):
         dataset, train_ids = prepare_input(dataset, train_ids, self)
-        log_progress(f"Training {type(self).__name__} model...")
+        log_progress(f"Training {type(self).__name__} ({self.combine}) model...")
 
         self.image_model.train(dataset, train_ids)
         self.text_model.train(dataset, train_ids)
-        _, labels = dataset.get_texts(train_ids, tensor=False)
+        targets = dataset.get_targets(train_ids, tensor=False)
 
         # TODO: Stacking
-        if self.combine == "stack":
-            pass
+        if self.combine in ["stack", "stacking"]:
+            self.stacking_model = get_classifier(self.stacking_clf, verbose=self.verbose)
+            
+            image_proba = self.image_model.predict_proba(dataset, train_ids)
+            text_proba = self.text_model.predict_proba(dataset, train_ids)
+            #stack = np.concatenate([image_proba, text_proba], axis=1)
+            stack = np.stack([image_proba, text_proba], axis=2).reshape((image_proba.shape[0], image_proba.shape[1]*2))
+
+            self.stacking_model.fit(stack, targets)
 
     def _predict(self, dataset, test_ids=None):
         dataset, test_ids = prepare_input(dataset, test_ids, self)
@@ -79,6 +90,9 @@ class LateFusion(PredictionModel):
             combined = np.max(all_proba, axis=0)
         if self.combine == "sum":
             combined = np.sum(all_proba, axis=0)
+        if self.combine in ["stack", "stacking"]:
+            stack = np.stack([image_proba, text_proba], axis=2).reshape((image_proba.shape[0], image_proba.shape[1]*2))
+            combined = self.stacking_model.predict_proba(stack)
 
         combined_proba = scipy.special.softmax(combined, axis=1)
         return combined_proba
