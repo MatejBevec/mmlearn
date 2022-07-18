@@ -232,7 +232,6 @@ class MultimodalDataset(Dataset):
         self.sample_rate = sample_rate
         self.mono = mono
         self.n_samples = n_samples
-        
 
         # Load and process the dataframe
         self.base_dir = dir
@@ -243,8 +242,6 @@ class MultimodalDataset(Dataset):
                     header=0 if header else None)
         if frac:
             self.df = self.df.sample(frac=frac)
-        if shuffle:
-            self.shuffle()
 
         self.classes, self.targets = np.unique(self.df.iloc[:,col], return_inverse=True)
         self.n_cls = len(self.classes)
@@ -274,6 +271,9 @@ class MultimodalDataset(Dataset):
             "video": self._lvideo,
         }
         self.loaders = {m: self.loaders[m] for m in self.loaders if self.mods[m]}
+
+        if shuffle:
+            self._shuffle()
 
     def _limage(self, i):
         id = self.df.iloc[i, 0]
@@ -335,14 +335,19 @@ class MultimodalDataset(Dataset):
 
     def clone(self):
         return copy.deepcopy(self)
+    
+    def _shuffle(self, seed=420):
+        """Shuffle this dataset in place."""
 
+        perm = np.random.RandomState(seed=seed).permutation(len(self))
+        self.df = self.df.iloc[perm, :].reset_index(drop=True)
+        self.targets = self.targets[perm]
 
-    def shuffle(self, seed=None):
+    def shuffle(self, seed=420):
         """Return a randomly shuffled copy of the dataset."""
-        perm = np.random.permutation(len(self))
+        
         cl = self.clone()
-        cl.df = self.df.iloc[perm, :]
-        cl.targets = self.targets[perm]
+        cl._shuffle(self, seed=seed)
         return cl
 
     def sample(self, idx):
@@ -568,57 +573,61 @@ def _download_dataset(source, name, verbose=True):
 
 class CaltechBirds(MultimodalDataset):
 
-    def __init__(self, name="caltech-birds"):
+    def __init__(self, name="caltech-birds", frac=None, shuffle=False, verbose=False, tensor=True):
         source = "https://dl.dropboxusercontent.com/s/u2cyt2c3f1clqfb/caltech-birds.zip"
         
         if not _has_dataset(os.path.join(DATA_DIR, name)):
             _download_dataset(source, name)
-        super(CaltechBirds, self).__init__(os.path.join(DATA_DIR, name))
+        super(CaltechBirds, self).__init__(os.path.join(DATA_DIR, name),
+                                        frac=frac, shuffle=shuffle, verbose=verbose, tensor=tensor)
 
 
 class TastyRecipes(MultimodalDataset):
 
-    def __init__(self, name="tasty-recipes"):
+    def __init__(self, name="tasty-recipes", frac=None, shuffle=False, verbose=False, tensor=True):
         source = "http://dl.dropboxusercontent.com/s/r95zhkuqhvphym3/tasty-recipes.zip"
         if not _has_dataset(os.path.join(DATA_DIR, name)):
             _download_dataset(source, name)  
-        super(TastyRecipes, self).__init__(os.path.join(DATA_DIR, name))
+        super(TastyRecipes, self).__init__(os.path.join(DATA_DIR, name),
+                                    frac=frac, shuffle=shuffle, verbose=verbose, tensor=tensor)
 
 
 class Fakeddit5k(MultimodalDataset):
 
-    def __init__(self, name="fakeddit", class_col=1):
+    def __init__(self, name="fakeddit", class_col=1, frac=None, shuffle=False, verbose=False, tensor=True):
         source = "http://dl.dropboxusercontent.com/s/i1ef9xinebp0dof/fakeddit.zip"
         if not _has_dataset(os.path.join(DATA_DIR, name)):
             _download_dataset(source, name)
-        super(Fakeddit5k, self).__init__(os.path.join(DATA_DIR, name), col=class_col)
+        super(Fakeddit5k, self).__init__(os.path.join(DATA_DIR, name), col=class_col,
+                                    frac=frac, shuffle=shuffle, verbose=verbose, tensor=tensor)
 
 
 class Fauxtography(MultimodalDataset):
 
-    def __init__(self, name="fauxtography"):
+    def __init__(self, name="fauxtography", frac=None, shuffle=False, verbose=False, tensor=True):
         source = "http://dl.dropboxusercontent.com/s/zl6or9lc7ph836s/fauxtography.zip"
         if not _has_dataset(os.path.join(DATA_DIR, name)):
             _download_dataset(source, name)
-        super(Fauxtography, self).__init__(os.path.join(DATA_DIR, name))
+        super(Fauxtography, self).__init__(os.path.join(DATA_DIR, name),
+                                    frac=frac, shuffle=shuffle, verbose=verbose, tensor=tensor)
 
 
 class SpotifyMultimodalPop(MultimodalDataset):
 
-    def __init__(self, name="spotify_multimodal_pop", frac=None):
+    def __init__(self, name="spotify_multimodal_pop", frac=None, shuffle=False, verbose=False, tensor=True):
         source = "https://download1336.mediafire.com/k9dl7neyh2eg/fnd60rzaj0ey4na/spotify_mm_pop.zip"
         if not _has_dataset(os.path.join(DATA_DIR, name)):
             _download_dataset(source, name)
         super(SpotifyMultimodalPop, self).__init__(os.path.join(DATA_DIR, name),
-                header=True, n_samples=48000, frac=frac)
+                header=True, n_samples=48000, frac=frac, shuffle=shuffle, verbose=verbose, tensor=tensor)
 
 
 class SpotifyMultimodalVal(MultimodalDataset):
 
-    def __init__(self, name="spotify_multimodal_val", frac=None):
+    def __init__(self, name="spotify_multimodal_val", frac=None, shuffle=False, verbose=False, tensor=True):
         source = "https://download1497.mediafire.com/mku6selaeemg/w04p8oisw4i03i5/spotify_mm_val.zip"
         if not _has_dataset(os.path.join(DATA_DIR, name)):
             _download_dataset(source, name)
         super(SpotifyMultimodalVal, self).__init__(os.path.join(DATA_DIR, name),
-                header=True, n_samples=48000, frac=frac)
+                header=True, n_samples=48000, frac=frac, shuffle=shuffle, verbose=verbose, tensor=tensor)
     

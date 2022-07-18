@@ -27,6 +27,10 @@ PRED_BATCH_SIZE = 16    # Default batch size for prediction using PredictionMode
 # HELPER METHODS
 
 def prepare_input(dataset, ids, model):
+    """Checks and prepares input to a PredictionModel's train and predict methods.
+        Returns the full dataset, not sampled by ids!
+    """
+
     if not isinstance(dataset, MultimodalDataset):
         try:
             dataset = from_array_dataset(dataset)
@@ -342,5 +346,4 @@ class UnimodalSkClassifier(PredictionModel):
     def predict_proba(self, dataset, test_ids=None):
         dataset, test_ids = prepare_input(dataset, test_ids, self)
         features, labels = self.fe.extract_all(dataset, test_ids, verbose=self.verbose)
-        check_predicts_proba(self.model)
         return self.model.predict_proba(features)

@@ -38,7 +38,8 @@ class LateFusion(PredictionModel):
 
     def __init__(self, image_model="default", text_model="default", combine="max", verbose=False):
         """
-        Multimodal late fusion model. Combine prediction of an image model and a text model.
+        Multimodal late fusion model. Combine predictions of an image model and a text model.
+        The image and text model must implement predict_proba.
 
         Args:
             image_model: An image classifier from models.image. Default is ImageSkClassifier.
@@ -48,9 +49,12 @@ class LateFusion(PredictionModel):
 
         self.modalities = ["image", "text"]
         self.verbose = verbose
+        self.combine = combine
 
-        self.image_model = image_models.ImageSkClassifier() if image_model == "default" else image_model
-        self.text_model = text_models.TextSkClassifier(clf="lr") if text_model == "default" else text_model
+        self.image_model = image_models.ImageSkClassifier(clf="lr_best") if image_model == "default" else image_model
+        self.text_model = text_models.TextSkClassifier(clf="lr_best") if text_model == "default" else text_model
+        self.image_model.verbose = self.verbose
+        self.text_model.verbose = self.verbose
 
     def train(self, dataset, train_ids=None):
         dataset, train_ids = prepare_input(dataset, train_ids, self)
@@ -64,15 +68,27 @@ class LateFusion(PredictionModel):
         if self.combine == "stack":
             pass
 
-    def predict(self, dataset, test_ids=None):
+    def _predict(self, dataset, test_ids=None):
         dataset, test_ids = prepare_input(dataset, test_ids, self)
 
-        # TODO: All model.model-s must have a predict_proba option?
-        # TODO: Combine predictions
-        pass
+        image_proba = self.image_model.predict_proba(dataset, test_ids)
+        text_proba = self.text_model.predict_proba(dataset, test_ids)
+        all_proba = np.stack([image_proba, text_proba], axis=0)
+
+        if self.combine == "max":
+            combined = np.max(all_proba, axis=0)
+        if self.combine == "sum":
+            combined = np.sum(all_proba, axis=0)
+
+        combined_proba = scipy.special.softmax(combined, axis=1)
+        return combined_proba
+
+    def predict(self, dataset, test_ids=None):
+        proba = self._predict(dataset, test_ids)
+        return np.argmax(proba, axis=1)
 
     def predict_proba(self, dataset, test_ids=None):
-        pass
+        return self._predict(dataset, test_ids)
  
 
 class NaiveEarlyFusion(PredictionModel):
@@ -105,9 +121,9 @@ class NaiveEarlyFusion(PredictionModel):
     def train(self, dataset, train_ids=None):
         dataset, train_ids = prepare_input(dataset, train_ids, self)
         self.model = get_classifier(self.clf)
-        log_progress(f"Training early fusion model: \
-                    ({type(self.image_fe).__name__} + {type(self.text_fe).__name__} \
-                     -> {type(self.model).__name__})", verbose=self.verbose)
+        log_progress(f"Training early fusion model:\n" \
+                    f"({type(self.image_fe).__name__} + {type(self.text_fe).__name__}" \
+                    f"-> {type(self.model).__name__})", verbose=self.verbose)
         
         features, labels = self._extract_features(dataset, train_ids)
         self.model.fit(features, labels)
