@@ -24,7 +24,7 @@ def load_image(path, h=400, w=400, transform=None):
     """Load an image into a normalized pytorch Tensor.
     
     Args:
-        path: The path to the image file. Accepted filetypes are: TODO
+        path: The path to the image file. Supported filetypes are jpg, gif, pdf, png, tiff and webp.
         h: Height of output Tensor.
         w: Width of output Tensor.
         transform: An instantiated custom pytorch Transform to apply to the image.
@@ -32,7 +32,7 @@ def load_image(path, h=400, w=400, transform=None):
             If None, resize and normalize. 
     
     Returns:
-        A normalized 3D pytorch Tensor of size (channels, h, w).
+        A normalized 3D pytorch `Tensor` of size (channels, h, w).
     """
 
     pil_img = Image.open(path).convert("RGB")
@@ -110,7 +110,7 @@ def load_audio(path, sample_rate=16000, mono=True, n_samples=None, normalized=Fa
     """Load an audio clip into a pytorch Tensor.
     
     Args:
-        path: The path to the audio file. Accepted filetypes are: TODO.
+        path: The path to the audio file.
         sample_rate: The sample rate of the output signal Tensor. Resample input if necessary.
             Keep original sample rate if None.
         mono: Transform input signal to mono by averaging channels.
@@ -121,7 +121,7 @@ def load_audio(path, sample_rate=16000, mono=True, n_samples=None, normalized=Fa
             The transform must match the output type and shape.
 
     Returns:
-        A 2D pytorch Tensor of size (1 or 2, samples).
+        A 2D pytorch `Tensor` of size (1 or 2, samples).
         The output sample rate.
     """
 
@@ -133,9 +133,6 @@ def load_audio(path, sample_rate=16000, mono=True, n_samples=None, normalized=Fa
 
     if transform:
         clip = transform(clip)
-
-    #HACK
-    clip.sr = sr
 
     return clip
 
@@ -149,6 +146,8 @@ def _has_dataset(root):
     if not os.path.isfile(os.path.join(root, "target.tsv")):
         return False
     return True
+
+# TODO: refactor next 4 functions, change design pattern
 
 def _is_data_directory(dir, ds):
     if not os.path.isdir(dir):
@@ -167,30 +166,71 @@ def _is_data_directory(dir, ds):
             return False
         return True
 
-def _is_array_multimodal_dataset(dataset):
+def _is_array_of_dicts_dataset(dataset):
+    
+    # check if array-like
+    not_dict = not isinstance(dataset, dict)
     has_len = callable(getattr(dataset, "__len__"))
     has_getitem = callable(getattr(dataset, "__getitem__"))
-    if not (has_len and has_getitem):
-        log_progress(f"Provided object is not a array-like.", level="warning")
+    if not (not_dict and has_len and has_getitem):
+        #log_progress(f"Provided object is not a array-like.", level="warning")
         return False
+
+    # check if example is a dict with correct data
     example = dataset[0]
-    if not(type(example) == dict and "target" in example):
-        log_progress(f"Provided dataset does not return expected data.", level="warning")
+    if not(type(example) == dict and next(iter(example.keys())) in ["image", "text", "audio", "video"]):
+        #log_progress(f"Provided array-like does not contain training examples in expected form.", level="warning")
         return False
     valid_dtypes = True
     for mod in example:
         if mod in ["image", "audio", "video"]:
-            valid_dtypes = valid_dtypes and isinstance(example[mod], torch.Tensor)
+            valid_dtypes = valid_dtypes and (isinstance(example[mod], torch.Tensor) or isinstance(example[mod], np.ndarray))
         if mod == "text":
             valid_dtype = valid_dtypes and type(example[mod]) == str
     if not valid_dtypes:
-        log_progress(f"Provided dataset does not return expected data.", level="warning")
+        #log_progress(f"Provided array-like does not contain training examples in expected form.", level="warning")
         return False
+
     return True
+
+def _is_dict_of_arrays_dataset(dataset):
+
+    # check if dict
+    if not(type(dataset) == dict and next(iter(dataset.keys())) in ["image", "text", "audio", "video"]):
+        #log_progress(f"Provided object is not a dict with at least a 'target' key.", level="warning")
+        return False
+
+    # check if values are data batches in correct form
+    valid_batches = True
+    for mod in dataset:
+        if mod in ["image", "audio", "video"]:
+            valid_batches = valid_batches and (isinstance(dataset[mod], torch.Tensor) or isinstance(dataset[mod], np.ndarray))
+            valid_batches = valid_batches and len(dataset[mod].shape) >= 3
+        if mod == "text":
+            valid_batches = valid_batches and callable(getattr(dataset[mod], "__getitem__")) and type(dataset[mod][0]) == str
+    if not valid_batches:
+        #log_progress("Provided dict does not batches in expected form for all modalities.", level="warning")
+        return False
+
+    return True
+
+def _from_dict_to_array_dataset(dict_dataset):
+    array_dataset = []
+    target_tensor = dict_dataset["target"]
+
+    for i in range(0, len(dict_dataset["target"])):
+        example = {}
+        for mod in dict_dataset:
+            example[mod] = dict_dataset[mod][i]
+        array_dataset.append(example)
+    
+    return array_dataset
+
+# TODO could just be one function that does everything: _check_naked_dataset or something
 
 def _check_idx(idx, n):
     idx_valid = (isinstance(idx, Iterable) and len(idx) > 0)
-    # TODO: always return ndarray
+    # TODO: always return `ndarray`
     idx = idx if idx_valid else range(0, n)
     return idx
 
@@ -198,34 +238,42 @@ def _check_idx(idx, n):
 # BASE CLASSES
 
 class MultimodalDataset(Dataset):
+    """A multimodal classification dataset.
+        Manages all data handling and provides a unified interface to all models.
+        Any MultimodalDataset-s can be trained on any PredictionModel, provided it encompasses the required modalities.
+        A MultimodalDataset instance is a valid torch Dataset instance, but it is also compatible with the sklearn ecosystem.
+        See [TODO] for details and example usage.
+
+        \b
+
+        The provided source directory `dir` must include:
+            - ./target.tsv file with filenames in col = 0 and target classes in col >= 1
+        And a subset of the following:
+            - ./image directory containing one image file per training example with filenames from target.tsv
+            - ./text directory containing one .txt file per example
+            - ./audio directory containing one audio file per example
+            - ./video directory containing one video file per example
+        The dataset object will output data in modalities for which a directory is provided.
+
+
+    Args:
+        dir: The dataset source directory (see above).
+        col: Target class column in target.tsv.
+        frac: Choose < 1 to randomly sub-sample loaded dataset.
+        shuffle: Randomly shuffle training examples.
+        header: Put True if target.tsv uses a header.
+        tensor: Return `Tensors` for images, audio, video if true, else return `ndarrays`.
+        img_size: Height and width for output images.
+        sample_rate: The sample rate output audio clips. Resample input if necessary.
+            Keep original sample rate if None.
+        mono: Transform input signal to mono by averaging channels.
+        n_samples: Cut or pad the input signal to make it n_samples long.
+            Take the length of the first clip if None.
+    """
 
     def __init__(self, dir, col=1, frac=None, shuffle=False, header=False, verbose=True, tensor=True,
                     img_size=400,
                     sample_rate=16000, mono=True, n_samples=None):
-        """Create a multimodal dataset object from directory.
-
-        Args:
-            dir: A directory that must include:
-                * ./target.tsv file with filenames in col = 0 and target classes in col >= 1
-                And a subset of the following:
-                * ./image directory containing one .jpg or .png file per training example with filenames from target.tsv
-                * ./text directory containing one .txt file per example
-                * ./audio directory containing one .wav or .mp3 file per example
-                * ./video directory containing one .mp4 file per example
-                The dataset object will output data in modalities for which a directory is provided.
-            col: Target class column in target.tsv.
-            frac: Choose < 1 to randomly sub-sample loaded dataset.
-            shuffle: Randomly shuffle training examples.
-            header: Put True if target.tsv uses a header.
-            verbose: Print progress information.
-            tensor: Return Tensors for images, audio, video if true, else return ndarrays.
-            img_size: Height and width for output images.
-            sample_rate: The sample rate output audio clips. Resample input if necessary.
-                Keep original sample rate if None.
-            mono: Transform input signal to mono by averaging channels.
-            n_samples: Cut or pad the input signal to make it n_samples long.
-                Take the length of the first clip if None.
-        """
 
         # Set modality params
         self.h = img_size
@@ -361,16 +409,16 @@ class MultimodalDataset(Dataset):
         """Get (a selection of) examples in chosen modalities (and targets) at once.
             Returns a dict of form ({"modality": data}, targets), the same as a DataLoader batch.
             Note that for most datasets, all images/audio/videos will not fit in memory.
-            Using MultimodalDataset with a DataLoader is preferred.
+            Using MultimodalDataset with batched operation is preferred.
 
         Args:
             modalities: A list of strings representing the modalities to retrieve. All if None.
             idx: An array-like of indices to retrieve.
-            tensor: If True, array-like data is returned as Tensors. If False, data is returned as ndarrays.
+            tensor: If True, array-like data is returned as `Tensors`. If False, data is returned as `ndarrays`.
             keep_dict: If False, the wrapping dict is omitted in case of single modality. Only the data is returned.
             target: If True, target variables are returned in a tuple.
 
-        Returns: A (data:dict, targets) tuple if target is True, data:dict otherwise.
+        Returns: A (data, targets) tuple if target is True, data (`dict`) otherwise.
         """
         
         if modalities is None:
@@ -403,11 +451,11 @@ class MultimodalDataset(Dataset):
     def get_images(self, idx=None, tensor=True, target=True):
         """Get (a selection of) images (and targets).
             Note that for most datasets, all images won't fit in memory.
-            Using MultimodalDataset with a DataLoader is preferred.
+            Using MultimodalDataset with batched operation is preferred.
 
         Args:
             idx: An optional list of ids to retrieve. All if None.
-            tensor: If True, image batch is returned as Tensor. If False, image batch is returned as ndarray.
+            tensor: If True, image batch is returned as Tensor. If False, image batch is returned as `ndarray`.
             target: If True, target variables are returned in a tuple.
         
         Returns: A (images, targets) tuple if target is True, images otherwise.
@@ -420,7 +468,7 @@ class MultimodalDataset(Dataset):
 
         Args:
             idx: An optional list of ids to retrieve. All if None.
-            tensor: If True, texts batch is returned as Tensor. If False, text batch is returned as ndarray.
+            tensor: If True, texts batch is returned as Tensor. If False, text batch is returned as `ndarray`.
             target: If True, target variables are returned in a tuple.
         
         Returns: A (texts, targets) tuple if target is True, texts otherwise.
@@ -430,10 +478,12 @@ class MultimodalDataset(Dataset):
 
     def get_audio(self, idx=None, tensor=True, target=True):
         """Get (a selection of) audio clips (and targets).
+            Note that for most datasets, all audio clips won't fit in memory.
+            Using MultimodalDataset with batched operation is preferred.
 
         Args:
             idx: An optional list of ids to retrieve. All if None.
-            tensor: If True, audio batch is returned as Tensor. If False, audio batch is returned as ndarray.
+            tensor: If True, audio batch is returned as Tensor. If False, audio batch is returned as `ndarray`.
             target: If True, target variables are returned in a tuple.
         
         Returns: A (clips, targets) tuple if target is True, clips otherwise.
@@ -443,10 +493,12 @@ class MultimodalDataset(Dataset):
 
     def get_videos(self, idx=None, tensor=True, target=True):
         """Get (a selection of) videos (and targets).
+            Note that for most datasets, all videos won't fit in memory.
+            Using MultimodalDataset with batched operation is preferred.
 
         Args:
             idx: An optional list of ids to retrieve. All if None.
-            tensor: If True, video batch is returned as Tensor. If False, video batch is returned as ndarray.
+            tensor: If True, video batch is returned as Tensor. If False, video batch is returned as `ndarray`.
             target: If True, target variables are returned in a tuple.
         
         Returns: A (clips, targets) tuple if target is True, clips otherwise.
@@ -455,13 +507,13 @@ class MultimodalDataset(Dataset):
         return self.get_data(["video"], idx, tensor=tensor, keep_dict=False)
 
     def get_targets(self, idx=None, tensor=True):
-        """ Get (a selection of) texts and targets in dataset at once.
+        """Get (a selection of) the target variables at once.
 
         Args:
             ids: An optional list of ids to retrieve. Retrieve all if None.
-            tensor: If True, returns a list of targets, else return an ndarray.
+            tensor: If True, returns a list of targets, else return an `ndarray`.
 
-        Returns: An Ndarray.
+        Returns: A list or `ndarray` if tensor is False.
         """
 
         idx = _check_idx(idx, len(self))
@@ -475,7 +527,7 @@ class MultimodalDataset(Dataset):
     def names(self):
         """Filenames (ids) for all examples in dataset
         
-        Returns: An Ndarray of names
+        Returns: An `ndarray`.
         """
         return np.array(list(self.df.iloc[:,0]))
 
@@ -489,20 +541,33 @@ class MultimodalDataset(Dataset):
 
 
 class ArrayMultimodalDataset(MultimodalDataset):
+    """A MultimodalDataset wrapper for a (naked) array dataset.
+            See data.from_array_dataset().
+    """
 
     def __init__(self, array_dataset, img_size=400, frac=None, shuffle=False):
-        """Create a MultimodalDataset from a PyTorch Dataset.
-            See data.from_array_dataset().
-        """
-    
-        if not _is_array_multimodal_dataset(array_dataset):
-            raise TypeError("Provided is not a valid multimodal torch Dataset.")
+
+        # check if valid naked dataset
+        if not _is_array_of_dicts_dataset(array_dataset):
+            if _is_dict_of_arrays_dataset(array_dataset):
+                array_dataset = _from_dict_to_array_dataset(array_dataset)
+            else:
+                raise TypeError("Provided object is not convertible to MultimodalDataset.")
+        
+
+        # convert all data to `Tensors`
+        for i in range(len(array_dataset)):
+            example = array_dataset[i]
+            for mod in example:
+                if mod in ["image", "audio", "video"] and isinstance(example[mod], np.ndarray):
+                    array_dataset[i][mod] = torch.from_numpy(example[mod])
+
 
         self.array_dataset = array_dataset
         targets = [array_dataset[i]["target"] for i in range(len(array_dataset))]
         names = [str(i) for i in range(len(targets))]
         self.df = pd.DataFrame({0: names, 1: targets})
-        self.base_dir = None
+        self.base_dir = "Memory"
 
         if frac:
             self.df = self.df.sample(frac=frac)
@@ -538,19 +603,40 @@ class ArrayMultimodalDataset(MultimodalDataset):
         return self.array_dataset[i]["video"]
 
 
-def from_array_dataset(array_dataset, img_size=400, frac=None, shuffle=False):
-    """Create a MultimodalDataset from a PyTorch Dataset.
+def from_array_dataset(array_dataset, frac=None, shuffle=False):
+    """Create a MultimodalDataset from an array dataset (naked dataset).
+
+        \b
+        `array_dataset can be one of the following:`
+            - An array-like of dicts (training examples) with modalities as keys and data as values.
+                Example: [{"image": image(`Tensor`), "target": target(`int`)}, ...]
+            - A dict of array-likes (data batches) as values.
+                Example: {"image": images(`Tensor`), "target": targets(`list`)}
+        Note that a torch `Dataset` can conform to this.
+        
+
     Args:
-        array_dataset: A array Dataset object which returns a dictionary in __getitem__.
-            The returned dictionary should be a subset of {"image": Tensor, "text": String,
-            "audio": Tensor, "video": Tensor, "target": int}.
+        array_dataset:
+            An array-like of dicts (training examples) with modalities as keys and data as values or a dict of array-likes (data batches) as values.
         frac: Choose < 1 to randomly sub-sample loaded dataset.
         shuffle: Randomly shuffle training examples.
 
-    Returns: A TorchMultimodalDataset, subclass of MultimodalDataset.
+    Returns: An ArrayMultimodalDataset (subclass of MultimodalDataset).
     """
 
-    return ArrayMultimodalDataset(array_dataset, img_size=img_size, frac=frac, shuffle=shuffle)
+    return ArrayMultimodalDataset(array_dataset, frac=frac, shuffle=shuffle)
+
+def is_array_dataset(dataset):
+    """Returns True if provided object is convertable to a MultimodalDataset with from_array_dataset().
+        That is, it's an array-like of dicts (training examples) with modalities as keys and data as values.
+        Or, a dict of array-likes (data batches) as values.
+    """
+
+    if type(dataset) == dict:
+        return _is_dict_of_arrays_dataset(dataset)
+    else:
+        return _is_array_of_dicts_dataset(dataset)
+
 
 
 
@@ -572,6 +658,13 @@ def _download_dataset(source, name, verbose=True):
     os.remove(zip_path)
 
 class CaltechBirds(MultimodalDataset):
+    """An image-text multiclass classsification dataset with 12k examples.
+        The data are images of birds and textual descriptions of their physical feautures.
+        The target classes are 192 bird (sub)species.
+
+        See [TODO] for more details.
+        If you use this dataset in research, please cite [TODO].
+    """
 
     def __init__(self, name="caltech-birds", frac=None, shuffle=False, verbose=False, tensor=True):
         source = "https://dl.dropboxusercontent.com/s/u2cyt2c3f1clqfb/caltech-birds.zip"
@@ -583,6 +676,13 @@ class CaltechBirds(MultimodalDataset):
 
 
 class TastyRecipes(MultimodalDataset):
+    """A small image-text multiclass classification dataset with 271 examples.
+        The data are textual recipes and images of the described dishes.
+        The target classes are 25 food categories.
+
+        See [TODO] for more details.
+        If you use this dataset in research, please cite [TODO].
+    """
 
     def __init__(self, name="tasty-recipes", frac=None, shuffle=False, verbose=False, tensor=True):
         source = "http://dl.dropboxusercontent.com/s/r95zhkuqhvphym3/tasty-recipes.zip"
@@ -593,6 +693,13 @@ class TastyRecipes(MultimodalDataset):
 
 
 class Fakeddit5k(MultimodalDataset):
+    """An image-text binary classification dataset with 5k examples.
+        The data are titles and possibly doctered images associated with Reddit posts from various subreddits.
+        The target is True if an image-text pair is factual and matching, False otherwise.
+
+        See [TODO] for more details.
+        If you use this dataset in research, please cite [TODO].
+    """
 
     def __init__(self, name="fakeddit", class_col=1, frac=None, shuffle=False, verbose=False, tensor=True):
         source = "http://dl.dropboxusercontent.com/s/i1ef9xinebp0dof/fakeddit.zip"
@@ -603,6 +710,13 @@ class Fakeddit5k(MultimodalDataset):
 
 
 class Fauxtography(MultimodalDataset):
+    """An image-text binary classification dataset with 1354 examples.
+        The data are possibly doctered images and descriptions of world news.
+        The target is True if an image-text pair is factual and matching, False otherwise.
+
+        See [TODO] for more details.
+        If you use this dataset in research, please cite [TODO].
+    """
 
     def __init__(self, name="fauxtography", frac=None, shuffle=False, verbose=False, tensor=True):
         source = "http://dl.dropboxusercontent.com/s/zl6or9lc7ph836s/fauxtography.zip"
@@ -613,6 +727,14 @@ class Fauxtography(MultimodalDataset):
 
 
 class SpotifyMultimodalPop(MultimodalDataset):
+    """An image-text-audio multiclass classification dataset with 10k examples.
+        The data are 30s audio excerpts and album covers of Spotify songs.
+        Each song is also described by a text, consisting of title, artist, album and the names of a few playlists said song appears in.
+        The targets are Spotify's song popularity scores.
+
+        See [TODO] for more details.
+        If you use this dataset in research, please cite this library.       
+    """
 
     def __init__(self, name="spotify_multimodal_pop", frac=None, shuffle=False, verbose=False, tensor=True):
         source = "https://download1336.mediafire.com/k9dl7neyh2eg/fnd60rzaj0ey4na/spotify_mm_pop.zip"
@@ -623,6 +745,14 @@ class SpotifyMultimodalPop(MultimodalDataset):
 
 
 class SpotifyMultimodalVal(MultimodalDataset):
+    """An image-text-audio multiclass classification dataset with 10k examples.
+        The data are 30s audio excerpts and album covers of popular Spotify songs.
+        Each song is also described by a text, consisting of title, artist, album and the names of a few playlists said song appears in.
+        The targets are the songs' valence ("happiness") scores, according to Spotify's computed `audio features`.
+
+        See [TODO] for more details.
+        If you use this dataset in research, please cite this library.       
+    """
 
     def __init__(self, name="spotify_multimodal_val", frac=None, shuffle=False, verbose=False, tensor=True):
         source = "https://download1497.mediafire.com/mku6selaeemg/w04p8oisw4i03i5/spotify_mm_val.zip"

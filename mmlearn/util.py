@@ -1,4 +1,4 @@
-import logging
+import logging, sys, io
 
 from torch import cuda
 from torch import device as ptdevice
@@ -40,3 +40,13 @@ def log_progress(msg, color="yellow", level="info", verbose=False):
     logging.log(levels[level], msg)
     if verbose and logging.root.level > levels[level]:
         print(msg) # Not sure if this is the correct way
+
+
+def check_dict_like(input, return_list=False):
+    """Check if input is a dict, a list of values or a list of ("key", value) tuples.
+        Convert to dict or list and return."""
+    
+    pass
+
+def silence_call():
+    pass

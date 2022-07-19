@@ -1,3 +1,4 @@
+from email.policy import default
 import os, sys
 import torch
 import logging
@@ -16,7 +17,7 @@ from mmlearn.util import log_progress, RESULTS_DIR
 from mmlearn.data import MultimodalDataset
 from mmlearn.models.base_models import PredictionModel
 
-METRICS = {
+DEFAULT_METRICS = {
     "ca": sklearn.metrics.accuracy_score,
     "macro_f1": lambda true, pred : sklearn.metrics.f1_score(true, pred, average="macro"),
     "precision": lambda true, pred : sklearn.metrics.precision_score(true, pred, average="macro"),
@@ -67,32 +68,34 @@ def save_results(results, save_dir=RESULTS_DIR):
     """Save a dict of result dataframes as .csv files.
 
     Args:
-        results: A dict of result dataframes of form {'metric_name': len(models) x len(datasets) DataFrame, ...}    
+        results: A dict with metric names as keys and dataframes of scores (n_models, n_datasets) as values.
     """
 
     for mname in results:
         results[mname].to_csv(sep="\t", index=True, header=True)
 
 
-def holdout(dataset, model, metrics=METRICS, ratio=0.7, shuffle=True,
+def holdout(dataset, model, metrics="default", ratio=0.7, shuffle=True,
             dataframe=False, random_state=42, verbose=True):
     """Train and evaluate given model on given dataset with a holdout test set.
 
     Args:
         dataset: The MultimodalDataset to use.
-        model: The classification model (ClsModel) to evaluate.
-        metrics: A dict of sklearn style metrics to evaluate (ex. {'ca': sklearn.metrics.accuracy_score}).
-                Default is [TODO].
+        model: The PredictionModel to evaluate.
+        metrics: A dict of callables - sklearn-style metrics to compute.
+                By default, compute accuracy, f1, precision and recall.
         ratio: The holdout ratio. Use len(dataset)*ratio examples for training.
         shuffle: Shuffle the given dataset pre-training.
         dataframe: Return results as a pandas dataframe.
-        random_state: Random see to use when needed. 'None' not to use a seed.
+        random_state: Random seed to use when possible. 'None' for no seed.
 
     Returns:
-        A dict of scores of form {'metric_name': number, ...}.
+        A dict with metric names as keys and scores as values.
     """
 
     dataset, model = _check_input_eval(dataset, model)
+    if metrics == "default":
+        metrics = DEFAULT_METRICS
 
     log_progress(f"Evaluating (holdout) {type(model).__name__} model on {type(dataset).__name__} dataset...",
                  verbose=verbose)
@@ -109,20 +112,28 @@ def holdout(dataset, model, metrics=METRICS, ratio=0.7, shuffle=True,
 
     return results
 
-def holdout_many(datasets, models, metrics=METRICS, ratio=0.7, shuffle=True,
+def holdout_many(datasets, models, metrics="default", ratio=0.7, shuffle=True,
                     dataframe=True, random_state=42, verbose=True):
     """Train and evaluate multiple models on multiple datasets with a holdout test set.
 
     Args:
-        datasets: A dict of datasets of form {'dataset_name': MultimodalDataset, ...}
-        models: A dict of models of form {'model_name': ClsModel, ...}
-        See eval.holdout() for more details.
+        datasets: Datasets to use - a dict of MultimodalDataset instances (or a single one).
+        models: Models to evaluate - a dict of PredictionModel instances (or a single one).
+        metrics: A dict of callables - sklearn-style metrics to compute.
+                By default, compute accuracy, f1, precision and recall.
+        ratio: The holdout ratio. Use len(dataset)*ratio examples for training.
+        shuffle: Shuffle the given dataset pre-training.
+        dataframe: Return results as a pandas dataframe.
+        random_state: Random seed to use when possible. 'None' for no seed.
 
     Returns:
-        A dict of result dataframes of form {'metric_name': len(models) x len(datasets) DataFrame, ...}
+        A dict of Pandas dataframes:
+        Score matrices of shape (n_models, n_datasets) for every metric.
     """
 
     datasets, models = _check_input_eval_many(datasets, models)
+    if metrics == "default":
+        metrics = DEFAULT_METRICS
 
     all_results = {mname: np.ndarray([len(models), len(datasets)]) for mname in metrics}
     for m, mdname in enumerate(models):
@@ -140,25 +151,27 @@ def holdout_many(datasets, models, metrics=METRICS, ratio=0.7, shuffle=True,
     return all_results
     
 
-def cross_validate(dataset, model, metrics=METRICS, folds=4, shuffle=True,
+def cross_validate(dataset, model, metrics="default", folds=4, shuffle=True,
                     dataframe=False, random_state=42, verbose=True):
     """Train and evaluate given model on given dataset with k-fold cross-validation.
 
     Args:
         dataset: The MultimodalDataset to use.
-        model: The classification model (ClsModel) to evaluate.
-        metrics: A dict of sklearn style metrics to evaluate (ex. {'ca': sklearn.metrics.accuracy_score}).
-                Default is [TODO].
+        model: The PredictionModel to evaluate.
+        metrics: A dict of callables - sklearn-style metrics to compute.
+                By default, compute accuracy, f1, precision and recall.
         folds: Number of folds (k) for k-fold cross-validation.
         shuffle: Shuffle the given dataset pre-training.
         dataframe: Return results as a pandas dataframe.
-        random_state: Random see to use when needed. 'None' not to use a seed.
+        random_state: Random seed to use when possible. 'None' for no seed.
 
     Returns:
-        A dict of scores of form {'metric_name': number, ...}.
+        A dict with metric names as keys and scores as values.
     """
 
     dataset, model = _check_input_eval(dataset, model)
+    if metrics == "default":
+        metrics = DEFAULT_METRICS
 
     log_progress(f"Cross-validating {type(model).__name__} model on {type(dataset).__name__} dataset...", verbose=verbose)
     kfold = KFold(n_splits=folds, shuffle=shuffle, random_state=random_state)
@@ -182,20 +195,28 @@ def cross_validate(dataset, model, metrics=METRICS, folds=4, shuffle=True,
 
     return avg_results
 
-def cross_validate_many(datasets, models, metrics=METRICS, folds=4, shuffle=True,
+def cross_validate_many(datasets, models, metrics="default", folds=4, shuffle=True,
                         dataframe=True, random_state=42, verbose=True):
     """Train and evaluate multiple models on multiple datasets with cross-validation.
 
     Args:
-        datasets: A dict of datasets of form {'dataset_name': MultimodalDataset, ...}
-        models: A dict of models of form {'model_name': ClsModel, ...}
-        See eval.cross_validate() for more details.
+        datasets: Datasets to use - a dict of MultimodalDataset instances.
+        models: Models to evaluate - a dict of PredictionModel instances.
+        metrics: A dict of callables - sklearn-style metrics to compute.
+                By default, compute accuracy, f1, precision and recall.
+        folds: Number of folds (k) for k-fold cross-validation.
+        shuffle: Shuffle the given dataset pre-training.
+        dataframe: Return results as a pandas dataframe.
+        random_state: Random seed to use when possible. 'None' for no seed.
 
     Returns:
-        A dict of result dataframes of form {'metric_name': len(models) x len(datasets) DataFrame, ...}
+        A dict of Pandas dataframes:
+        Score matrices of shape (n_models, n_datasets) for every metric.
     """
 
     datasets, models = _check_input_eval_many(datasets, models)
+    if metrics == "default":
+        metrics = DEFAULT_METRICS
 
     all_results = {mname: np.ndarray([len(models), len(datasets)]) for mname in metrics}
     for m, mdname in enumerate(models):

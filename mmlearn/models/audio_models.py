@@ -25,15 +25,15 @@ from mmlearn.util import log_progress, DEVICE, REG_PARAM_RANGE
 
 
 class AudioSkClassifier(UnimodalSkClassifier):
+    """Audio feature extractor + a scikit-learn classifier.
+        A shorthand for UnimodalSkClassifier(fe=audio_fe.OpenL3()).
+        See superclass for details.
+    
+    Args:
+        fe: A feature extractor model from 'fe.audio_fe'. Default is OpenL3.
+        clf: The classifier to use.
+    """
 
     def __init__(self, fe="default", clf="svm_best", verbose=False):
-        """Audio feature extractor + a scikit-learn classifier.
-            A shorthand for UnimodalSkClassifier(fe=audio_fe.OpenL3()).
-        
-        Args:
-            fe: A feature extractor model from 'fe.audio_fe'. Default is OpenL3.
-            clf: The classifier to use. 'svm', 'lr', 'rf' or an instance of any sklearn classifer.
-        """
-        
         fe = audio_fe.OpenL3() if fe == "default" else fe
         super().__init__(fe=fe, clf=clf, verbose=verbose)

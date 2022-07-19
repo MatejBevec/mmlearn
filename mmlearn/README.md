@@ -56,6 +56,8 @@
 - FEs must fit targets to correct form on input
 - later: feature selection at extractor level?
 - where to put generic features extractors
+- shorten the naked dataset code
+- data and eval module need a name change
 
 
 

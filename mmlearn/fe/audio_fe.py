@@ -59,7 +59,14 @@ def _check_output(out, tensor=False):
 
 
 class AudioExtractor(ABC):
-    """Base audio feature extractor class."""
+    """Base audio feature extractor class.
+
+    Args:
+        tensor: If True, return the encoded batch as `Tensor`, else return `ndarray`.
+        
+    Attributes:
+        modalities: A list of strings denoting modalities which this model operates with.
+    """
 
     @abstractmethod
     def __init__(self):
@@ -71,31 +78,39 @@ class AudioExtractor(ABC):
 
         Args:
             clips: A batch of audio clips as a (bsize, 1 or 2, samples) Tensor.
-            train: Whether to fit a trainable model before calling. Irrelevant if not trainable.
+            train: In feature extractor that are trainable, this indicates whether to fit the extractor in this call.
+                    train=True is identical to calling fit_transform() and train=False is identical to calling transform()
+                    "auto" only fits in first call after init.
+                    If not trainable, this argument is irrelevant and defaults to False.
             hop_length: Most audio models embed short windows of the input clip separately.
                     This parameter sets the distance between embedding windows, if possible. Set to "auto" to use defaults.
             win_length: This parameter sets the width of the embedding window, if possible. Set to "auto" to use defaults.
             combine: Whether to combine window embeddings into one vector, representing the entire input clip.
                     Set to "mean" to return the average of window embeddings as a (bsize, dim) matrix.
-                    Set to None to perform no combination and return window embeddings as a (bsize, n_windows, dim) matrix.
+                    Set to None to perform no combination and return window embeddings as a (bsize, nwindows, dim) matrix.
 
         Returns:
-            A batch of embeddings as a (bsize, d) Ndarray.
+            A batch of embeddings as an `ndarray` of shape (bsize, d) or (bsize, nwindows, dim).
         """
         pass
 
     def extract_all(self, dataset, ids=None, verbose=False):
-        """Extracts image features (embeddings) for entire dataset."""
+        """Extracts image features (embeddings) for entire dataset.
+        
+        Args:
+            dataset: A MultimodalDataset with `audio` modality.
+            ids: The indices of examples to encode. None for all.
+        """
 
         return _extract_audio_features(self, dataset, ids, verbose)
 
     def fit_transform(self, X, y=None):
-        """For sklearn compatibility. (Trains) and calls f.e."""
+        """For sklearn compatibility. (Trains) and calls self."""
 
         return self.__call__(torch.from_numpy(X), train=True)
 
     def transform(self, X, y=None):
-        """For sklearn compatibility. Calls f.e. (without training)."""
+        """For sklearn compatibility. Calls self (without training)."""
 
         return self.__call__(torch.from_numpy(X), train=False)
 
@@ -105,7 +120,7 @@ class AudioExtractor(ABC):
 
 
 class OpenL3(AudioExtractor):
-    """Audio feature extractor: OpenL3 deep audio embedding.
+    """Feature extractor: OpenL3 deep audio embedding.
     
     OpenL3 is a variation and implementation of the L3-Net self-supervised join audio-image embedding.
     See https://arxiv.org/abs/1705.08168.

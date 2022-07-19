@@ -36,15 +36,16 @@ from mmlearn.util import log_progress, DEVICE, USE_CUDA
 
 
 class TextSkClassifier(UnimodalSkClassifier):
+    """Text feature extractor + a scikit-learn classifier.
+        A shorthand for UnimodalSkClassifier(fe=text_fe.NGrams()).
+        See superclass for details.
+    
+    Args:
+        fe: An TextFeatureExtractor from 'fe.text_fe'. Default is NGrams().
+        clf: The classifier to use.
+    """
 
     def __init__(self, fe="default", clf="svm_best", verbose=False):
-        """Text feature extractor + a scikit-learn classifier.
-            A shorthand for UnimodalSkClassifier(fe=text_fe.NGrams()).
-        
-        Args:
-            fe: A feature extractor model from 'fe.text_fe'. Default is NGrams().
-            clf: The classifier to use. 'svm', 'lr', 'rf' or an instance of any sklearn classifer.
-        """
         
         fe = textfe.NGrams() if fe == "default" else fe
         super().__init__(fe=fe, clf=clf, verbose=verbose)
@@ -53,18 +54,16 @@ class TextSkClassifier(UnimodalSkClassifier):
 class BERT(PredictionModel):
     """A fine-tuned BERT transformer model in classifier configuration. 
 
-    The chosen pretrained BERT model and fine-tuned on given data.
+    Choose a pretrained model/weights and fine-tune on given data.
     Implemented using the Simple Transformers library.
+    
+    Args:
+        weights: The pretrained weights to load. Chose among 'bert-base-uncased', TODO, and more.
+                See huggingface.com/TODO
+        epochs: Number of epochs for fine-tuning.
     """
 
     def __init__(self, weights='bert-base-uncased', epochs=20, verbose=False):
-        """Initialize BERT model.
-
-        Args:
-            weights: The pretrained weights to load. Chose among 'bert-base-uncased', [todo], and more.
-                    See huggingface.com/[todo]
-            epochs: Number of epochs for fine-tuning.
-        """
         self.weights = weights
         self.epochs = epochs
         self.modalities = ["text"]
@@ -109,9 +108,12 @@ class BERT(PredictionModel):
 
 
 class TextTPOT(PredictionModel):
-    """N-gram features into TPOT, a tree-based sklearn AutoML model.
+    """N-gram features + TPOT, a tree-based sklearn AutoML model.
     
-    POT is anAutoML tool that automatically evolves scikit-learn pipelines based on tree ensemble learners.
+    TPOT is anAutoML tool that automatically evolves scikit-learn pipelines based on tree ensemble learners.
+    
+    Args:
+        random_state: Random seed passed to the TPOT model.
     """
 
     def __init__(self, random_state=42, verbose=False):
@@ -158,6 +160,14 @@ class AutoBOT(PredictionModel):
     
     AutoML tool where an evolutionary algorithm automates the representation selection process.
     See the paper "autoBOT: evolving neuro‑symbolic representations for explainable low resource text classifcation" for more details.
+    
+    Args:
+        random_state: Random seed passed to the TPOT model.
+        time_constraint: Number of hours to evolve.
+        num_cpu: Number of threads to exploit
+        device: Computation backend device, "cpu" or "gpu".
+        latent_dim: The latent dimension of embeddings. TODO
+        upsample: True to equalize the number of instances by upsampling.
     """
 
     def __init__(self, time_constraint=1, num_cpu="all", device="cpu",

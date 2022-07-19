@@ -10,3 +10,4 @@ pyprojectx.toml
 build
 outputs
 mmlearn.egg-info
+docs/_build

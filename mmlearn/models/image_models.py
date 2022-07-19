@@ -24,14 +24,15 @@ from mmlearn.fe import image_fe as imgfe
 from mmlearn.util import log_progress, DEVICE, REG_PARAM_RANGE
 
 class ImageNeuralClassifier(PredictionModel):
+    """Image feature extractor + a pytorch NN classifier.
+        The classifier is a 2-layer fully-connected network with ReLU activation, Adam optimizer and cross-entropy loss. 
+    
+    Args:
+        fe: A ImageFeatureExtractor from 'fe.image'. Default is MobileNetV3.
+    """
 
     def __init__(self, fe="default", verbose=False):
-        """Image feature extractor + a pytorch NN classifier.
-            The classifier is a 2-layer fully-connected network with ReLU activation, Adam optimizer and cross-entropy loss. 
-        
-        Args:
-            fe: A feature extractor model from 'fe.image'. Default is MobileNetV3.
-        """
+
         
         self.fe = imgfe.MobileNetV3() if fe == "default" else fe
         self.modalities = ["image"]
@@ -70,30 +71,29 @@ class ImageNeuralClassifier(PredictionModel):
 
 
 class ImageSkClassifier(UnimodalSkClassifier):
+    """Image feature extractor + a scikit-learn classifier.
+        A shorthand for UnimodalSkClassifier(fe=image_fe.MobileNetV3()).
+        See superclass for details.
+    
+    Args:
+        fe: An ImageFeatureExtractor from 'fe.image_fe'. Default is MobileNetV3.
+        clf: The classifier to use.
+    """
 
     def __init__(self, fe="default", clf="svm_best", verbose=False):
-        """Image feature extractor + a scikit-learn classifier.
-            A shorthand for UnimodalSkClassifier(fe=image_fe.MobileNetV3()).
-        
-        Args:
-            fe: A feature extractor model from 'fe.image_fe'. Default is MobileNetV3.
-            clf: The classifier to use. 'svm', 'lr', 'rf' or an instance of any sklearn classifer.
-        """
-        
         fe = imgfe.MobileNetV3() if fe == "default" else fe
         super().__init__(fe=fe, clf=clf, verbose=verbose)
 
 
 class TunedMobileNetV3(PredictionModel):
+    """Fine-tuned pretrained MobileNet V3 Large image classification model.
+        Final (classifier) layer is replaced to fit output dimension and the whole network is fine-tuned on given data.
+
+    Args:
+        epochs: Number of epochs to train for fune-tuning.
+    """
 
     def __init__(self, epochs=20, verbose=False):
-        """Fine-tuned pretrained MobileNet V3 Large image classification model.
-            Final (classifier) layer is replaced to fit output dimension and the whole network is fine-tuned on given data.
-
-        Args:
-            epochs: Number of epochs to train for fune-tuning.
-        """
-
         self.epochs = epochs
         self.modalities = ["image"]
         self.verbose = verbose

@@ -62,39 +62,53 @@ def _check_output(out, tensor=False):
 
 
 class TextExtractor(ABC):
-    """Base text feature extractor class."""
+    """Base text feature extractor (document embedding) class.
+    
+    Args:
+        tensor: If True, return the encoded batch as `Tensor`, else return `ndarray`.
+        
+    Attributes:
+        modalities: A list of strings denoting modalities which this model operates with.
+    """
 
     @abstractmethod
-    def __init__(self):
+    def __init__(self, tensor=False):
         pass
 
     @abstractmethod
-    def __call__(self, texts, train=False, train_data=None):
+    def __call__(self, texts, train="auto", train_data=None):
         """Extracts features for a batch of texts.
 
         Args:
-            imgs: An (bsize,) array or list of strings.
-            trained: In feature extractor that are trainable, this indicates whether to fit the extractor in this call.
-                    Use True if using in training step and False othewise. "auto" only fits in first call after init.
+            imgs: An array or list of strings of length (bsize).
+            train: In feature extractor that are trainable, this indicates whether to fit the extractor in this call.
+                    train=True is identical to calling fit_transform() and train=False is identical to calling transform()
+                    "auto" only fits in first call after init.
                     If not trainable, this argument is irrelevant and defaults to False.
+            train_data: The custom training data, if trainable fe supports it.
 
         Returns:
-            A batch of embeddings as a (bsize, d) Ndarray.
+            A batch of embeddings as an `ndarray` of shape (bsize, d).
         """
         pass
 
     def extract_all(self, dataset, ids=None, verbose=False):
-        """Extracts image features (embeddings) for entire dataset."""
+        """Extracts text features (embeddings) for entire dataset.
+        
+        Args:
+            dataset: A MultimodalDataset with `text` modality.
+            ids: The indices of examples to encode. None for all.
+        """
         
         return _extract_text_features(self, dataset, ids, verbose)
 
     def fit_transform(self, X, y=None):
-        """For sklearn compatibility. (Trains) and calls f.e."""
+        """For sklearn compatibility. (Trains) and calls self."""
 
         return self.__call__(torch.from_numpy(X), train=True)
 
     def transform(self, X, y=None):
-        """For sklearn compatibility. Calls f.e. (without training)."""
+        """For sklearn compatibility. Calls self (without training)."""
 
         return self.__call__(torch.from_numpy(X), train=False, train_data=None)
 
@@ -104,16 +118,15 @@ class TextExtractor(ABC):
 
 
 class NGrams(TextExtractor):
+    """Extract TfIdf features from word and character n-grams.
+
+    Args:
+        word_n: Word n-gram range (n).
+        char_n: Character n-gram range (n).
+        max_features: Limit output features to 'max_features' dimensions.
+    """
 
     def __init__(self, word_n=(1, 3), char_n=(2, 4), max_features=2000, tensor=False):
-        """Extract TfIdf features from word and character n-grams.
-
-        Args:
-            word_n: Word n-gram range (n).
-            char_n: Character n-gram range (n).
-            max_features: Limit output features to 'max_features' dimensions.
-        """
-
         self.trained = False
         self.tensor = tensor
         max_features = int(max_features/2)
@@ -134,15 +147,14 @@ class NGrams(TextExtractor):
 
 
 class WordNGrams(TextExtractor):
+    """Extract TfIdf features from word n-grams.
+
+    Args:
+        n: Word n-gram range.
+        max_features: Limit output features to 'max_features' dimensions.
+    """
 
     def __init__(self, n=(1,3), max_features=1000, tensor=False):
-        """Extract TfIdf features from word n-grams.
-
-        Args:
-            n: Word n-gram range.
-            max_features: Limit output features to 'max_features' dimensions.
-        """
-
         self.trained = False
         self.tensor = tensor
         fe = TfidfVectorizer(ngram_range=n, max_features=max_features)
@@ -161,15 +173,14 @@ class WordNGrams(TextExtractor):
 
 
 class CharNGrams(TextExtractor):
+    """Extract TfIdf features from character n-grams.
+
+    Args:
+        n: Character n-gram range.
+        max_features: Limit output features to 'max_features' dimensions.
+    """
 
     def __init__(self, n=(2,4), max_features=1000, tensor=False):
-        """Extract TfIdf features from character n-grams.
-
-        Args:
-            n: Character n-gram range.
-            max_features: Limit output features to 'max_features' dimensions.
-        """
-
         self.trained = False
         self.tensor = tensor
         fe = TfidfVectorizer(analyzer="char", ngram_range=n, max_features=max_features)
@@ -187,17 +198,16 @@ class CharNGrams(TextExtractor):
         return _check_output(out, self.tensor)
 
 class Keywords(TextExtractor):
+    """Extract keyword features.
+        See the paper "autoBOT: evolving neuro-symbolic representations for explainable low resource text classifcation" for more details.
+        Target labels must be bassed via train_data=labels when calling for the first time.
+
+    Args:
+        max_features: Limit output features to 'max_features' dimensions.
+        tensor: If True, return Tensor, else return ndarray.
+    """
 
     def __init__(self, max_features=500, tensor=False):
-        """Extract keyword features.
-            See the paper "autoBOT: evolving neuro‑symbolic representations for explainable low resource text classifcation" for more details.
-            Target labels must be bassed via train_data=labels when calling for the first time.
-
-        Args:
-            max_features: Limit output features to 'max_features' dimensions.
-            tensor: If True, return Tensor, else return ndarray.
-        """
-
         self.trained = False
         self.tensor = tensor
         self.max_features = max_features
@@ -215,17 +225,16 @@ class Keywords(TextExtractor):
         return _check_output(out, self.tensor)
 
 class TokenRelations(TextExtractor):
+    """Extract token relations, i.e. features based on the average distances between pairs of tokens.
+        See the paper "autoBOT: evolving neuro‑symbolic representations for explainable low resource text classifcation" for more details.
+
+    Args:
+        max_features: Limit output features to 'max_features' dimensions.
+        min_token: The kind of tokens to consider. Options are "word", "unigrams", "bigrams" and "threegrams".
+        tensor: If True, return Tensor, else return ndarray.
+    """
 
     def __init__(self, max_features=10000, min_token="bigrams", targets=None, tensor=False):
-        """Extract token relations, i.e. features based on the average distances between pairs of tokens.
-            See the paper "autoBOT: evolving neuro‑symbolic representations for explainable low resource text classifcation" for more details.
-
-        Args:
-            max_features: Limit output features to 'max_features' dimensions.
-            min_token: The kind of tokens to consider. Options are "word", "unigrams", "bigrams" and "threegrams".
-            tensor: If True, return Tensor, else return ndarray.
-        """
-
         self.trained = False
         self.tensor = tensor
         self.max_features = max_features 
@@ -250,16 +259,15 @@ class TokenRelations(TextExtractor):
         return _check_output(out, self.tensor)
 
 class AllSparseFeatures(TextExtractor):
+    """A convenience class: concatenate features from (all) available sparse/symbolic feature extractors.
+
+    Args:
+        word_n: An optional list of selected extractors.
+                Must be a subset of ["word_ngrams", "char_ngrams", "keywords", "token_relations"] or None to select all.
+        tensor: If True, return Tensor, else return ndarray.
+    """
 
     def __init__(self, selection=None, tensor=False):
-        """A convenience class: concatenate features from (all) available sparse/symbolic feature extractors.
-
-        Args:
-            word_n: An optional list of selected extractors.
-                    Must be a subset of ["word_ngrams", "char_ngrams", "keywords", "token_relations"] or None to select all.
-            tensor: If True, return Tensor, else return ndarray.
-        """
-
         fes = {
             "word_ngrams": WordNGrams,
             "char_ngrams": CharNGrams,
@@ -282,15 +290,14 @@ class AllSparseFeatures(TextExtractor):
         return _check_output(out, self.tensor)
 
 class CombineFeatures(TextExtractor):
+    """A convenience class: concatenate features from provided ft. extractors.
+
+    Args:
+        extractors: A list of FeatureExtractor instances.
+        tensor: If True, return Tensor, else return ndarray.
+    """
 
     def __init__(self, extractors, tensor=False):
-        """A convenience class: concatenate features from provided ft. extractors.
-
-        Args:
-            extractors: A list of FeatureExtractor instances.
-            tensor: If True, return Tensor, else return ndarray.
-        """
-
         self.trained = False
         self.extractors = extractors
         self.tensor = tensor
@@ -311,19 +318,17 @@ class CombineFeatures(TextExtractor):
 
 
 class SentenceTransformersExtractor(TextExtractor):
-    """A generic f.e. wrapper for a SentenceTransformers embedding model."""
+    """A generic fe wrapper: extract text features with pretrained SentenceTransformers model of choice.
+    
+    Args:
+        model: The pretrained SentenceTransformers model (weights) to use.
+            Some options include:
+            [TODO]
+            See [TODO] for more detail.
+        tensor: If True, return Tensor, else return ndarray.
+    """
 
     def __init__(self, model, tensor=False):
-        """Extract text features with pretrained SentenceTransformers model of choice.
-        
-        Args:
-            model: The pretrained SentenceTransformers model (weights) to use.
-                Some options include:
-                [TODO]
-                See [TODO] for more detail.
-            tensor: If True, return Tensor, else return ndarray.
-        """
-
         self.model = model
         self.tensor = tensor
         self.fe = SentenceTransformer(model)
@@ -336,62 +341,60 @@ class SentenceTransformersExtractor(TextExtractor):
 
 
 class BERTExtractor(SentenceTransformersExtractor):
+    """Extract text features with a pretrained BERT document embedding model.
+        This is a shorthand for SentenceTransformersExtractor(model='paraphrase-multilingual-mpnet-base-v2').
+    
+    Args:
+        tensor: If True, return Tensor, else return ndarray.
+    """
 
     def __init__(self, tensor=False):
-        """Extract text features with a pretrained BERT document embedding model.
-            This is a shorthand for SentenceTransformersExtractor(model='paraphrase-multilingual-mpnet-base-v2').
-        
-        Args:
-            tensor: If True, return Tensor, else return ndarray.
-        """
-
         self.tensor = tensor
         self.fe = SentenceTransformer('paraphrase-multilingual-mpnet-base-v2')
 
 class MPNETExtractor(SentenceTransformersExtractor):
+    """Extract text features with a fine-tuned microsoft/mpnet-base embedding model.
+        Intended for information retrieval with sentences and short paragraphs.
+        See https://huggingface.co/sentence-transformers/all-mpnet-base-v2 for more detail.
+        This is a shorthand for SentenceTransformersExtractor(model='all-mpnet-base-v2').
+    
+    Args:
+        tensor: If True, return Tensor, else return ndarray.
+    """
 
     def __init__(self, tensor=False):
-        """Extract text features with a fine-tuned microsoft/mpnet-base embedding model.
-            Intended for information retrieval with sentences and short paragraphs.
-            See https://huggingface.co/sentence-transformers/all-mpnet-base-v2 for more detail.
-            This is a shorthand for SentenceTransformersExtractor(model='all-mpnet-base-v2').
-        
-        Args:
-            tensor: If True, return Tensor, else return ndarray.
-        """
-
         self.tensor = tensor
         self.fe = SentenceTransformer('all-mpnet-base-v2')
         
 
 class CLIPExtractor(TextExtractor):
+    """Extract text features with a pretrained CLIP joint image-text embedding model.
+        This is a shorthand for SentenceTransformersExtractor(model='clip-ViT-B-32').
+    
+    Args:
+        tensor: If True, return Tensor, else return ndarray.
+    """
 
     def __init__(self, tensor=False):
-        """Extract text features with a pretrained CLIP joint image-text embedding model.
-            This is a shorthand for SentenceTransformersExtractor(model='clip-ViT-B-32').
-        
-        Args:
-            tensor: If True, return Tensor, else return ndarray.
-        """
-
-
         self.tensor = tensor
         self.fe = SentenceTransformer('clip-ViT-B-32')
 
 
 class Doc2Vec(TextExtractor):
+    """Doc2Vec text feature extractor.
+        Pretrained on Gensim's "common_texts" by default.
+        Pass fe(train=True, train_data=texts:list) to train on custom data.
 
+    Args:
+        dim: Output dimension.
+        window: The window size in training.
+        min_count: Ignore words with lower frequency.
+    """
+    
     def __init__(self, dim=64, window=2, min_count=1, tensor=False, train_data=None):
-        """Doc2Vec text feature extractor.
-            Pretrained on Gensim's "common_texts" by default.
-            Pass fe(train=True, train_data=texts:list) to train on custom data.
-
-        Args:
-            dim: Output dimension.
-            window: The window size in training.
-            min_count: Ignore words with lower frequency.
-        """
-        
+        self.dim = dim
+        self.window = window
+        self.min_count = min_count
         self.tensor = tensor
 
         if train_data is None:

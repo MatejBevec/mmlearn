@@ -27,9 +27,8 @@ PRED_BATCH_SIZE = 16    # Default batch size for prediction using PredictionMode
 # HELPER METHODS
 
 def prepare_input(dataset, ids, model):
-    """Checks and prepares input to a PredictionModel's train and predict methods.
-        Returns the full dataset, not sampled by ids!
-    """
+    #Checks and prepares input to a PredictionModel's train and predict methods.
+    #Returns the full dataset, not sampled by ids!
 
     if not isinstance(dataset, MultimodalDataset):
         try:
@@ -56,20 +55,21 @@ def check_predicts_proba(model):
 
 
 def get_classifier(clf, verbose=False):
-    """Returns one of the pre-configured sklearn-style classifiers.
+    """Utility function - returns one of the pre-configured sklearn-style classifiers.
         Used to parse the "clf" argument in PredictionModel constructors when a shorthand string is provided.
 
+        The following string shorthands are available:
+            - "svm": sklearn.svm.LinearSVC() with default settings              
+            - "svm_best": Fit LinearSVC models with different reguralization params from 0.1 to 500 and pick best performer.
+            - "lr": sklearn.linear_model.LogisticRegression() with default settings
+            - "lr_best": Fit LogisticRegression models with different reguralization params from 0.1 to 500 and pick best performer.
+            - "rf": sklearn.ensemble.RandomForestClassifier() with default settings
+            - "nn": sklearn.neural_network.MLPClassifier() with default settings
+            - "tpot": sklearn.tpot.TPOTClassifier(generations=5, population_size=50, verbosity=2, random_state=42, max_time_mins=120)
+
     Args:
-        clf: One of the following string abbreviations, referring to the type of classifier to return:
-                "svm": sklearn.svm.LinearSVC() with default settings              
-                "svm_best": Fit LinearSVC models with different reguralization params (C = [0.1:500]) and pick best performer.
-                "lr": sklearn.linear_model.LogisticRegression() with default settings
-                "lr_best": Fit LogisticRegression models with different reguralization params (C = [0.1:500]) and pick best performer.
-                "rf": sklearn.ensemble.RandomForestClassifier() with default settings
-                "nn": sklearn.neural_network.MLPClassifier() with default settings
-                "tpot": sklearn.tpot.TPOTClassifier(generations=5, population_size=50,
-                                        verbosity=2, random_state=42, max_time_mins=120)
-    
+        clf: A string abbreviation, referring to one of the available classifier to return (see above).
+
     """
 
     if clf == "svm_best":
@@ -97,7 +97,7 @@ def get_classifier(clf, verbose=False):
 
 def train_torch_nn(model, dataset, loss_func, optimizer,
                                     train_ids=None, batch_size=32, epochs=10, lr=1e-3):
-    """Trains a pytorch Module using given pytorch Dataset and training parameters."""
+    """Utility function - trains a pytorch Module using given pytorch Dataset and training parameters."""
 
     model = model.to(DEVICE)
     dl = DataLoader(dataset, batch_size=batch_size, sampler=train_ids)
@@ -119,7 +119,7 @@ def train_torch_nn(model, dataset, loss_func, optimizer,
                 batch_loss = 0
 
 def predict_torch_nn(model, dataset, test_ids=None):
-    """Performs the inference step on given pytorch Module and Dataset."""
+    """Utility function - performs the inference step on given pytorch Module and Dataset."""
 
     model = model.to(DEVICE).eval()
     dl = DataLoader(dataset, batch_size=PRED_BATCH_SIZE, sampler=test_ids)
@@ -153,6 +153,10 @@ def predict_torch_nn(model, dataset, test_ids=None):
 
 
 class AutoSkClf(BaseEstimator):
+    """Utility class - a sklearn Estimator.
+        On a call to fit(X,y), fits multiple variation of an Estimator and picks best performer.
+        I.e. performs a basic hyperparameter search.
+    """
 
     def __init__(self, verbose=False):
         self.param_sets = None # dicts of parameters
@@ -183,8 +187,8 @@ class AutoSkClf(BaseEstimator):
         return self.model.predict_proba(X)
 
 class AutoLinearSVM(AutoSkClf):
-    """A sklearn BaseEstimator.
-        Fits multiple LinearSVM models with different reguralization parameters and picks best performer.
+    """Utility class - a sklearn Estimator.
+        Fits LinearSVM models with a range of reguralization parameters and picks best performer.
     """
 
     def __init__(self, verbose=False):
@@ -194,8 +198,8 @@ class AutoLinearSVM(AutoSkClf):
         self.verbose = verbose
 
 class AutoLogisticRegression(AutoSkClf):
-    """A sklearn BaseEstimator.
-        Fits multiple LogisticRegression models with different reguralization parameters and picks best performer.
+    """Utility class - a sklearn Estimator.
+        Fits LogisticRegression models with a range of reguralization parameters and picks best performer.
     """
 
     def __init__(self, verbose=False):
@@ -208,10 +212,8 @@ class AutoLogisticRegression(AutoSkClf):
 
 class PredictionModel(BaseEstimator):
     """Base classification model class.
-    
-    A common interface for all models - image, text, audio, video and multimodal.
-    Any PredictionModel can be trained on any MultimodalDataset.
-    Subclasses implement the torch Dataset interface, and are compatible with the sklearn ecosystem (with some caveats).
+        A common interface for all models - image, text, audio, video and multimodal.
+        Any PredictionModel can be trained on any MultimodalDataset, provided the dataset encompasses all required modalities.
 
     Attributes:
         modalities: A list of strings denoting modalities which this model operates with.
@@ -219,12 +221,11 @@ class PredictionModel(BaseEstimator):
     
     @abstractmethod
     def __init__(self):
-        """Initialize model with optional settings."""
         pass
 
     @abstractmethod
     def train(self, dataset, train_ids=None):
-        """Train model on given dataset.
+        """Train model on given MultimodalDataset.
         
         Args:
             dataset: A MultimodalDataset instance.
@@ -234,23 +235,24 @@ class PredictionModel(BaseEstimator):
 
     @abstractmethod
     def predict(self, dataset, test_ids=None):
-        """Predict target variables on given dataset. Sklearn-compatible if test_ids are not passed.
+        """Predict target variables on given dataset.
         
         Args:
             dataset: A MultimodalDataset instance. Usually same as for train().
             test_ids: Indices representing the testing set or None (whole dataset).
 
         Returns:
-            Predictions as a (len(test_ids), ) Ndarray.
+            Predictions as an `ndarray` of shape (len(test_ids)) or `Tensor` if specified.
         """
         pass
 
-    def fit(self, dataset, y=None):
+    def fit(self, dataset, targets=None):
         """A sklearn-compatible wrapper for the train() method.
         
         Args:
-            X: Must be a MultimodalDataset instance. Because train_ids are not passed here, X itself should be the train split.
-            y: Since targets are included in X, this arguments is ignored.
+            dataset: Must be a MultimodalDataset instance or convertible to one (see `data.from_array_dataset`).
+                Because train_ids are not passed here, X itself should be the train split.
+            targets: The target variables. Can be obtained with `dataset.get_targets()`.
         """
         self.train(dataset, train_ids=None)
 
@@ -263,7 +265,11 @@ class PredictionModel(BaseEstimator):
 
 
 class RandomClassifier(PredictionModel):
-    """Predicts random class for every test instance."""
+    """Predicts random class for every test instance.
+    
+    Args:
+        random_state: The random generator seed.
+    """
 
     def __init__(self, random_state=42, verbose=False):
         self.seed = random_state
@@ -310,17 +316,17 @@ class MajorityClassifier(PredictionModel):
 
 
 class UnimodalSkClassifier(PredictionModel):
+    """A model consisting of a FeatureExtrctor and a sklearn classifier (estimator).
+    
+    Args:
+        fe: A FeatureExtractor from 'fe.image', 'fe.text', 'fe.audio' or 'fe.video'.
+            The modality of the choosen fe must match the used dataset (the dataset must include it).
+        clf: The classifier to use. A string shorthand or an instance of any sklearn classifer.
+            See :meth:`mmlearn.models.base_models.get:classifier`. Default is base_models.AutoLinearSVM().
+    """
+        
 
     def __init__(self, fe=None, clf="svm_best", verbose=False):
-        """A model consisting of a feature extractor (from mmlearn.fe) and a sklearn classifier.
-        
-        Args:
-            fe: A feature extractor model from 'fe.image', 'fe.text', 'fe.audio' or 'fe.video'.
-                The modality of the choosen f.e. must match the used dataset(s) (the dataset(s) must include it).
-            clf: The classifier to use. 'svm', 'lr', 'rf' or an instance of any sklearn classifer.
-                Default is base_models.AutoLinearSVM().
-        """
-        
         if not fe:
             raise ValueError("The feature extractor (fe) was not provided as argument.")
         self.fe = fe

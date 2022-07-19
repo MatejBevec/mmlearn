@@ -35,21 +35,20 @@ from mmlearn.util import log_progress, DEVICE, USE_CUDA, REG_PARAM_RANGE
 
 
 class LateFusion(PredictionModel):
+    """
+    Multimodal late fusion model. Combine predictions (probabilities) of an image model and a text model.
+    The image and text model must implement predict_proba.
+
+    Args:
+        image_model: An image classifier from models.image. Default is ImageSkClassifier.
+        text_model: A text classifier from models.text. Default is TextSkClassifier.
+        combine: Method for combining predictions. "max", "sum", or "stack".
+                "stack" trains a meta classifier to predict targets from output probabilites.
+        stacking_clf: The sklearn-style classifier to use for final probability stacking.
+                        Only relevant if combine == "stack". Must implement predict_proba.
+    """
 
     def __init__(self, image_model="default", text_model="default", combine="max", stacking_clf="lr", verbose=False):
-        """
-        Multimodal late fusion model. Combine predictions (probabilities) of an image model and a text model.
-        The image and text model must implement predict_proba.
-
-        Args:
-            image_model: An image classifier from models.image. Default is ImageSkClassifier.
-            text_model: A text classifier from models.text. Default is TextSkClassifier.
-            combine: Method for combining predictions. "max", "sum", or "stack".
-                    "stack" trains a meta classifier to predict targets from output probabilites.
-            stacking_clf: The sklearn-style classifier to use for final probability stacking.
-                            Only relevant if combine == "stack". Must implement predict_proba.
-        """
-
         self.modalities = ["image", "text"]
         self.verbose = verbose
         self.combine = combine
@@ -106,18 +105,17 @@ class LateFusion(PredictionModel):
  
 
 class NaiveEarlyFusion(PredictionModel):
+    """Naive multimodal early fusion model.
+        Image and text features are extracted, concatenated and fed to a classifier.
+
+    Args:
+        image_fe: An ImageFeatureExtractor from fe.image. Default is MobileNetV3.
+        text_fe: A TextFeatureExtractor from fe.text. Default is SentenceBERT.
+        clf: Classifier - string shorthand or a sklearn estimator instance.
+            See :meth:`mmlearn.models.base_models.get:classifier` for list of shorthands.
+    """
 
     def __init__(self, image_fe="default", text_fe="default", clf="svm", verbose=False):
-        """Naive multimodal early fusion model.
-            Image and text features are extracted, concatenated and fed to a classifier.
-
-        Args:
-            image_fe: An image feature extractor from fe.image. Default is MobileNetV3.
-            text_fe: A text feature extractor from fe.text. Default is SentenceBERT.
-            clf: Classifier - string shorthand or a sklearn estimator instance.
-                See [todo] for list of shorthands.
-        """
-
         self.modalities = ["image", "text"]
         self.verbose = verbose
 

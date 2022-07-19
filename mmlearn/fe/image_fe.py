@@ -59,36 +59,53 @@ def _check_output(out, tensor=False):
 
 
 class ImageExtractor(ABC):
-    """Base image feature extractor class."""
+    """Base image feature extractor (image embedding) class.
+    
+    Args:
+        tensor: If True, return the encoded batch as `Tensor`, else return `ndarray`.
+
+    Attributes:
+        modalities: A list of strings denoting modalities which this model operates with.
+    """
 
     @abstractmethod
     def __init__(self):
         pass
 
     @abstractmethod
-    def __call__(self, imgs):
+    def __call__(self, imgs, train="auto", train_data=None):
         """Extracts features (embeddings) for a batch of images.
 
         Args:
-            imgs: A batch of images as a (bsize, h, w) Tensor.
+            imgs: A batch of images as `Tensor` of shape (bsize, h, w) .
+            train: In feature extractor that are trainable, this indicates whether to fit the extractor in this call.
+                    train=True is identical to calling fit_transform() and train=False is identical to calling transform()
+                    "auto" only fits in first call after init.
+                    If not trainable, this argument is irrelevant and defaults to False.
+            train_data: The custom training data, if trainable fe supports it.
 
         Returns:
-            A batch of embeddings as a (bsize, d) Ndarray.
+            A batch of embeddings as an `ndarray` of shape (bsize, d).
         """
         pass
 
     def extract_all(self, dataset, ids=None, verbose=False):
-        """Extracts image features (embeddings) for entire dataset."""
+        """Extracts image features (embeddings) for entire dataset.
+        
+        Args:
+            dataset: A MultimodalDataset with `image` modality.
+            ids: The indices of examples to encode. None for all.
+        """
 
         return _extract_image_features(self, dataset, ids, verbose)
 
     def fit_transform(self, X, y=None):
-        """For sklearn compatibility. (Trains) and calls f.e."""
+        """For sklearn compatibility. (Trains) and calls self"""
 
         return self.__call__(torch.from_numpy(X), train=True)
 
     def transform(self, X, y=None):
-        """For sklearn compatibility. Calls f.e. (without training)."""
+        """For sklearn compatibility. Calls self (without training)."""
 
         return self.__call__(torch.from_numpy(X), train=False)
 
@@ -99,65 +116,65 @@ class ImageExtractor(ABC):
 
 
 class ResNet(ImageExtractor):
+    """Feature extractor: pretrained ResNet 152 without clf layer."""
 
     def __init__(self, tensor=False):
-        """Feature extractor: pretrained ResNet 152 without clf layer."""
         self.model = models.resnet152(pretrained=True)
         self.model.fc = nn.Identity()
         self.model.eval().to(DEVICE)
         self.tensor = tensor
 
-    def __call__(self, imgs, train=False):
+    def __call__(self, imgs, train=False, train_data=None):
         imgs = _check_input(imgs)
         out = self.model(imgs.to(DEVICE)).detach().cpu().numpy()
         return _check_output(out, self.tensor)
 
 class InceptionV3(ImageExtractor):
+    """Feature extractor: pretrained ResNet 152 without clf layer."""
 
     def __init__(self, tensor=False):
-        """Feature extractor: pretrained ResNet 152 without clf layer."""
         self.model = models.inception_v3(pretrained=True)
         self.model.fc = nn.Identity()
         self.model.eval().to(DEVICE)
         self.tensor = tensor
 
-    def __call__(self, imgs, train=False):
+    def __call__(self, imgs, train=False, train_data=None):
         imgs = _check_input(imgs)
         out = self.model(imgs.to(DEVICE)).detach().cpu().numpy()
         return _check_output(out, self.tensor)
 
 class MobileNetV3(ImageExtractor):
+    """Feature extractor: pretrained ResNet MobileNet V3 Large without clf layer."""
 
     def __init__(self, tensor=False):
-        """Feature extractor: pretrained ResNet MobileNet V3 Large without clf layer."""
         self.model = models.mobilenet_v3_large(pretrained=True)
         self.model.classifier = nn.Identity()
         self.model.eval().to(DEVICE)
         self.tensor = tensor
 
-    def __call__(self, imgs, train=False):
+    def __call__(self, imgs, train=False, train_data=None):
         imgs = _check_input(imgs)
         out = self.model(imgs.to(DEVICE)).detach().cpu().numpy()
         return _check_output(out, self.tensor)
 
 class EfficientNet(ImageExtractor):
+    """Feature extractor: pretrained EfficientNet B7 without clf layer."""
 
     def __init__(self, tensor=False):
-        """Feature extractor: pretrained EfficientNet B7 without clf layer."""
         self.model = models.efficientnet_b7(pretrained=True)
         self.model.classifier = nn.Identity()
         self.model.eval().to(DEVICE)
         self.tensor = tensor
     
-    def __call__(self, imgs, train=False):
+    def __call__(self, imgs, train=False, train_data=None):
         imgs = _check_input(imgs)
         out = self.model(imgs.to(DEVICE)).detach().cpu().numpy()
         return _check_output(out, self.tensor)
 
 class ViT(ImageExtractor):
+    """Feature extractor: pretrained Vision Transformer without clf layer."""
 
     def __init__(self, tensor=False):
-        """Feature extractor: pretrained Vision Transformer without clf layer."""
         self.model = pytorch_pretrained_vit.ViT('B_16_imagenet1k', pretrained=True)
         self.model.norm = nn.Identity()
         self.model.fc = nn.Identity()
@@ -165,19 +182,19 @@ class ViT(ImageExtractor):
         self.tf = tf.Compose([tf.Resize((384,384)), tf.Normalize(0.5, 0.5)])
         self.tensor = tensor
 
-    def __call__(self, imgs, train=False):
+    def __call__(self, imgs, train=False, train_data=None):
         imgs = _check_input(imgs)
         out = self.model(self.tf(imgs).to(DEVICE)).detach().cpu().numpy()
         return _check_output(out, self.tensor)
 
-class ImageCLIP(ImageExtractor):
+class CLIP(ImageExtractor):
+    """Feature extractor: CLIP joint image-text embedding model."""
 
     def __init__(self, tensor=False):
-        """Feature extractor: CLIP joint image-text embedding model."""
         self.fe = SentenceTransformer("clip-ViT-B-32")
         self.tensor = tensor
     
-    def __call__(self, imgs, train=False):
+    def __call__(self, imgs, train=False, train_data=None):
         imgs = _check_input(imgs)
         out = self.fe.encode(imgs)
         return _check_output(out, self.tensor)

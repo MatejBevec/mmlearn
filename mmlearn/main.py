@@ -41,46 +41,56 @@ if __name__ == "__main__":
     
     # MULTIMODAL DATASETS
 
-    dataset = data.TastyRecipes(shuffle=True)
+    # dataset = data.TastyRecipes(shuffle=True)
     dataset2 = data.Fauxtography(shuffle=True)
-    #spotify_dataset = data.SpotifyMultimodalVal(frac=0.2)
+    # spotify_dataset = data.SpotifyMultimodalVal(frac=0.2)
 
 
 
 
     # EVALUATE MULTIPLE MODELS AND DATASETS
 
-    model= base_models.MajorityClassifier()
+    # model= base_models.MajorityClassifier()
     model2 = text_models.TextSkClassifier(fe=text_fe.NGrams(), clf="lr_best")
 
-    arraylike = [
-        {"text": "hello world", "target": 0},
-        {"text": "lalalal", "target": 1},
-        {"text": "fdsafsdasfddf", "target": 0},
-    ]
+    # latef = mm_models.LateFusion(combine="stack", stacking_clf="lr_best")
+    # earlyf = mm_models.NaiveEarlyFusion(text_fe=text_fe.NGrams(), clf="lr_best")
+    # models = {"majority": model, "text": model2,
+    #         "late fusion": latef}#, "early fusion": earlyf}
+    # results = eval.holdout_many(spotify_dataset, models, dataframe=True)
+    # pprint.pprint(results)
 
-    latef = mm_models.LateFusion(combine="stack", stacking_clf="lr_best")
-    earlyf = mm_models.NaiveEarlyFusion(text_fe=text_fe.NGrams(), clf="lr_best")
-    models = {"majority": model, "text": model2,
-            "late fusion": latef}#, "early fusion": earlyf}
-    results = eval.holdout_many(dataset2, models, dataframe=True)
-    pprint.pprint(results)
+    # NAKED DATASETS
+    # array_ds = [
+    #     {"text": "hello world", "image": torch.zeros((4,4)), "target": 0},
+    #     {"text": "lalalal", "image": torch.ones((4,4)), "target": 1},
+    #     {"text": "fdsafsdasfddf", "image": torch.zeros((4,4)), "target": 0},
+    # ]
 
-    #eval.holdout(dataset2, model2)
+    # dict_ds = {
+    #     "text": ["hello world", "lalalal", "fdsafsdasfddf"],
+    #     "image": torch.zeros((3,4,4)),
+    #     "target": [0, 1, 0]
+    # }
 
+    # ds = data.from_array_dataset(array_ds)
+    # print(ds)
+    # ds = data.from_array_dataset(dict_ds)
+    # print(ds)
 
-    # gs = GridSearchCV(
-    #     model2,
-    #     {"clf": ["lr", "rf"], "fe": [text_fe.NGrams(), text_fe.SentenceBERT()]},
-    #     scoring="f1",
-    #     cv=2
-    # )
+    # SKLEARN GRID SEARCH
+    gs = GridSearchCV(
+        model2,
+        {"clf": ["lr", "rf"], "fe": [text_fe.NGrams(), text_fe.BERTExtractor()]},
+        scoring="f1",
+        cv=2
+    )
 
-    # gs.fit(dataset2, dataset2.get_targets())
+    gs.fit(dataset2, dataset2.get_targets())
 
-    # print(gs.best_estimator_)
-    # print(gs.best_params_)
-    # print(gs.best_score_)
+    print(gs.best_estimator_)
+    print(gs.best_params_)
+    print(gs.best_score_)
 
 
 
