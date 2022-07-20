@@ -8,7 +8,6 @@ import torch.nn as nn
 import torchvision.transforms as tf
 from torch.utils.data import DataLoader
 import torchvision.models as models
-import pytorch_pretrained_vit
 from sentence_transformers import SentenceTransformer
 import openl3
 from tqdm import tqdm

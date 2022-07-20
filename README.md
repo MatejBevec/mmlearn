@@ -5,9 +5,12 @@ Offers a standardized interface across image, text, audio and video modalities, 
 ## Install from repo
 ```
 git clone https://github.com/MatejBevec/mmlearn
-cd mmlearn
-pip install .
+pip install ./mmlearn
 ```
+
+To avoid any dependency clashes, consider doing this in a **virtual environment.**
+
+
 
 ## Quickly initialize, train and evaluate a model
 
@@ -22,6 +25,8 @@ model = mm_models.EarlyFusion(image_fe=image_fe.ResNet(), text_fe=text_fe.Senten
 
 results = eval.holdout(dataset, model, ratio=0.7)
 ```
+
+
 
 ## Usage
 
@@ -121,7 +126,7 @@ results = eval.cross_validate_many(datasets, clf_models, folds=4)
 ```
 
 ### Compatibility with scikit-learn
-mmlearn bridges the gap between the the in-memory text/tabular computation of sklearn and deep learning with images, audio and video, where batched operation is necessary.
+mmlearn bridges the gap between in-memory computing (sklearn) in the domain of text/tabular data and deep learning with images, audio and video, where batched operation is necessary.
 For maximum flexibility, both FeaturesExtractor-s and PredictionModels-s are compatible with sklearn workflows. Naturally though, this is only an option for datasets that fit in memory.
 The conventional usage with batches operation (as in above examples) is advised.
 

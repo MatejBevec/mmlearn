@@ -9,7 +9,6 @@ import torch.nn as nn
 import torchvision.transforms as tf
 import torchvision.models as models
 from torch.utils.data import DataLoader, TensorDataset
-import pytorch_pretrained_vit
 from sentence_transformers import SentenceTransformer
 import sklearn
 from sklearn.svm import LinearSVC
