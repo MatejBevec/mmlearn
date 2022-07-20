@@ -1,5 +1,6 @@
 **Easy-to-use and flexible multimodal classification library with a sk-learn-like interface.**
-Offers traditional and neural image, text, audio, video and multimodal models with a standardized interface as well as feature extractors and evaluation utilities.
+
+Offers a standardized interface across image, text, audio and video modalities, including quickly deployable traditional and neural classification models and feature extractors (encoders), as well as easy-to-use evaluation utilities.
 
 ## Install from repo
 ```

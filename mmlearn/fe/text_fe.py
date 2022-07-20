@@ -20,7 +20,7 @@ from gensim.models import doc2vec
 from tqdm import tqdm
 import autoBOTLib
 
-from mmlearn.data import MultimodalDataset
+from mmlearn.data import MultimodalDataset, from_array_dataset
 from mmlearn.util import log_progress, DEVICE, USE_CUDA, SAVE_DIR
 
 TEXT_FE_BATCH_SIZE = 4  # Batch size when extracting features from text
@@ -34,24 +34,29 @@ def _check_input(texts):
 
 def _extract_text_features(fe, dataset, ids=None, verbose=False):
     if not isinstance(dataset, MultimodalDataset):
-        raise TypeError("'dataset' must be a MultimodalDataset.")
+        try:
+            dataset = from_array_dataset(dataset)
+        except:
+            raise TypeError("'dataset' must be a MultimodalDataset.")
     if not isinstance(fe, TextExtractor):
         raise TypeError("'fe' must be a TextExtractor from fe.text")
-
-    features_list = []
-    labels_list = []
+    
     n = len(ids) if ids is not None else len(dataset)
     dl = DataLoader(dataset, batch_size=TEXT_FE_BATCH_SIZE, sampler=ids)
 
+    features_list = []
     pbar = tqdm(total=n, desc="Extracting text features", disable=not verbose)
     for i, batch in enumerate(dl, 0):
         features_list.append(fe(batch["text"]))
-        labels_list.append(batch["target"])
-        pbar.update(len(batch["target"]))
+        pbar.update(len(batch["text"]))
     pbar.close()
-
     features = np.concatenate(features_list, axis=0)
-    labels = np.concatenate(labels_list, axis=0)
+
+    labels = None
+    if dataset.targets is not None:
+        labels_list = [batch["target"] for batch in dl]
+        labels = np.concatenate(labels_list, axis=0)
+
     return features, labels
 
 def _check_output(out, tensor=False):

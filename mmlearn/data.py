@@ -197,7 +197,7 @@ def _is_dict_of_arrays_dataset(dataset):
 
     # check if dict
     if not(type(dataset) == dict and next(iter(dataset.keys())) in ["image", "text", "audio", "video"]):
-        #log_progress(f"Provided object is not a dict with at least a 'target' key.", level="warning")
+        log_progress(f"Provided object is not a dict with at least one modality.", level="warning")
         return False
 
     # check if values are data batches in correct form
@@ -209,16 +209,16 @@ def _is_dict_of_arrays_dataset(dataset):
         if mod == "text":
             valid_batches = valid_batches and callable(getattr(dataset[mod], "__getitem__")) and type(dataset[mod][0]) == str
     if not valid_batches:
-        #log_progress("Provided dict does not batches in expected form for all modalities.", level="warning")
+        log_progress("Provided dict does not batches in expected form for all modalities.", level="warning")
         return False
 
     return True
 
 def _from_dict_to_array_dataset(dict_dataset):
     array_dataset = []
-    target_tensor = dict_dataset["target"]
+    a_key = next(iter(dict_dataset.keys()))
 
-    for i in range(0, len(dict_dataset["target"])):
+    for i in range(0, len(dict_dataset[a_key])):
         example = {}
         for mod in dict_dataset:
             example[mod] = dict_dataset[mod][i]
@@ -269,9 +269,12 @@ class MultimodalDataset(Dataset):
         mono: Transform input signal to mono by averaging channels.
         n_samples: Cut or pad the input signal to make it n_samples long.
             Take the length of the first clip if None.
+
+    Attributes:
+        classes: Classes represented by the integer target variables. E.g. ["low", "mid", "high"].
     """
 
-    def __init__(self, dir, col=1, frac=None, shuffle=False, header=False, verbose=True, tensor=True,
+    def __init__(self, src_dir, col=1, frac=None, shuffle=False, header=False, verbose=True, tensor=True,
                     img_size=400,
                     sample_rate=16000, mono=True, n_samples=None):
 
@@ -282,11 +285,11 @@ class MultimodalDataset(Dataset):
         self.n_samples = n_samples
 
         # Load and process the dataframe
-        self.base_dir = dir
-        if not _has_dataset(dir):
-            raise FileNotFoundError("Provided 'dir' does not contain dataset in required form.")
+        self.base_dir = src_dir
+        if not _has_dataset(src_dir):
+            raise FileNotFoundError("Provided 'src_dir' does not contain dataset in required form.")
 
-        self.df = pd.read_csv(os.path.join(dir, "target.tsv"), dtype={0: str}, sep="\t",
+        self.df = pd.read_csv(os.path.join(src_dir, "target.tsv"), dtype={0: str}, sep="\t",
                     header=0 if header else None)
         if frac:
             self.df = self.df.sample(frac=frac)
@@ -297,7 +300,7 @@ class MultimodalDataset(Dataset):
         # Initialize this dataset's modalities
         self.data_dirs, self.exts, self.av_mods = {}, {}, {}
         for modality in ["image", "text", "audio", "video"]:
-            data_dir = os.path.join(dir, modality)
+            data_dir = os.path.join(src_dir, modality)
             if _is_data_directory(data_dir, self):
                 self.data_dirs[modality] = data_dir
                 self.av_mods[modality] = True
@@ -355,8 +358,9 @@ class MultimodalDataset(Dataset):
         for m in self.loaders:
             example[m] = self.loaders[m](i)
 
-        target = self.targets[i] # targets are indices, self.classes[target] to get the string
-        example["target"] = target
+        if self.targets is not None:
+            target = self.targets[i]
+            example["target"] = target
         return example
 
     def __str__(self):
@@ -517,7 +521,11 @@ class MultimodalDataset(Dataset):
         """
 
         idx = _check_idx(idx, len(self))
-        targets = self.targets[idx]
+        try:
+            targets = self.targets[idx]
+        except:
+            log_progress("This dataset does not contain target variables.", level="warning")
+            return None
         if tensor:
             targets = list(targets)
         return targets
@@ -525,7 +533,7 @@ class MultimodalDataset(Dataset):
 
     @property
     def names(self):
-        """Filenames (ids) for all examples in dataset
+        """Filenames (ids) for all examples in dataset.
         
         Returns: An `ndarray`.
         """
@@ -533,11 +541,12 @@ class MultimodalDataset(Dataset):
 
     @property
     def modalities(self):
-        """Modalities covered by this dataset
+        """Modalities covered by this dataset.
 
         Returns: A list of strings.
         """
         return [m for m in self.mods if self.mods[m]]
+
 
 
 class ArrayMultimodalDataset(MultimodalDataset):
@@ -546,14 +555,12 @@ class ArrayMultimodalDataset(MultimodalDataset):
     """
 
     def __init__(self, array_dataset, img_size=400, frac=None, shuffle=False):
-
         # check if valid naked dataset
         if not _is_array_of_dicts_dataset(array_dataset):
             if _is_dict_of_arrays_dataset(array_dataset):
                 array_dataset = _from_dict_to_array_dataset(array_dataset)
             else:
                 raise TypeError("Provided object is not convertible to MultimodalDataset.")
-        
 
         # convert all data to `Tensors`
         for i in range(len(array_dataset)):
@@ -564,8 +571,10 @@ class ArrayMultimodalDataset(MultimodalDataset):
 
 
         self.array_dataset = array_dataset
-        targets = [array_dataset[i]["target"] for i in range(len(array_dataset))]
-        names = [str(i) for i in range(len(targets))]
+        targets = None
+        if "target" in array_dataset[i]:
+            targets = [array_dataset[i]["target"] for i in range(len(array_dataset))]
+        names = [str(i) for i in range(len(array_dataset))]
         self.df = pd.DataFrame({0: names, 1: targets})
         self.base_dir = "Memory"
 
@@ -579,8 +588,11 @@ class ArrayMultimodalDataset(MultimodalDataset):
         self.mods = self.av_mods.copy()
 
         self.h = img_size
-        self.classes, self.targets = np.unique(self.df.iloc[:,1], return_inverse=True)
-        self.n_cls = len(self.classes)
+        if targets is not None:
+            self.classes, self.targets = np.unique(self.df.iloc[:,1], return_inverse=True)
+            self.n_cls = len(self.classes)
+        else:
+            self.classes, self.targets, self.n_cls = None, None, 0
 
         self.loaders = {
             "image": self._limage,

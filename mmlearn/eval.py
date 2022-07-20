@@ -94,6 +94,7 @@ def holdout(dataset, model, metrics="default", ratio=0.7, shuffle=True,
     """
 
     dataset, model = _check_input_eval(dataset, model)
+    model.verbose = verbose
     if metrics == "default":
         metrics = DEFAULT_METRICS
 
@@ -170,6 +171,7 @@ def cross_validate(dataset, model, metrics="default", folds=4, shuffle=True,
     """
 
     dataset, model = _check_input_eval(dataset, model)
+    model.verbose = verbose
     if metrics == "default":
         metrics = DEFAULT_METRICS
 

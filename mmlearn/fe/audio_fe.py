@@ -13,7 +13,7 @@ from sentence_transformers import SentenceTransformer
 import openl3
 from tqdm import tqdm
 
-from mmlearn.data import MultimodalDataset
+from mmlearn.data import MultimodalDataset, from_array_dataset
 from mmlearn.util import log_progress, DEVICE, USE_CUDA, SAMPLE_RATE
 
 AUDIO_FE_BATCH_SIZE = 4   # Batch size when extracting features from images
@@ -30,24 +30,29 @@ def _check_input(clips):
 
 def _extract_audio_features(fe, dataset, ids=None, verbose=False):
     if not isinstance(dataset, MultimodalDataset):
-        raise TypeError("'dataset' must be a MultimodalDataset.")
+        try:
+            dataset = from_array_dataset(dataset)
+        except:
+            raise TypeError("'dataset' must be a MultimodalDataset.")
     if not isinstance(fe, AudioExtractor):
         raise TypeError("'fe' must be a AudioExtractor from fe.audio_fe.")
 
-    features_list = []
-    labels_list = []
     n = len(ids) if ids is not None else len(dataset)
     dl = DataLoader(dataset, batch_size=AUDIO_FE_BATCH_SIZE, sampler=ids)
 
+    features_list = []
     pbar = tqdm(total=n, desc="Extracting audio features", disable=not verbose)
     for i, batch in enumerate(dl, 0):
         features_list.append(fe(batch["audio"]))
-        labels_list.append(batch["target"])
-        pbar.update(len(batch["target"]))
+        pbar.update(len(batch["audio"]))
     pbar.close()
-
     features = np.concatenate(features_list, axis=0)
-    labels = np.concatenate(labels_list, axis=0)
+
+    labels = None
+    if dataset.targets is not None:
+        labels_list = [batch["target"] for batch in dl]
+        labels = np.concatenate(labels_list, axis=0)
+
     return features, labels
 
 def _check_output(out, tensor=False):

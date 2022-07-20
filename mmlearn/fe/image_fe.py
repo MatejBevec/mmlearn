@@ -12,7 +12,7 @@ import pytorch_pretrained_vit
 from sentence_transformers import SentenceTransformer
 from tqdm import tqdm
 
-from mmlearn.data import MultimodalDataset
+from mmlearn.data import MultimodalDataset, from_array_dataset
 from mmlearn.util import log_progress, DEVICE, USE_CUDA
 
 IMG_FE_BATCH_SIZE = 4   # Batch size when extracting features from images
@@ -30,24 +30,29 @@ def _check_input(imgs):
 
 def _extract_image_features(fe, dataset, ids=None, verbose=False):
     if not isinstance(dataset, MultimodalDataset):
-        raise TypeError("'dataset' must be a MultimodalDataset.")
+        try:
+            dataset = from_array_dataset(dataset)
+        except:
+            raise TypeError("'dataset' must be a MultimodalDataset.")
     if not isinstance(fe, ImageExtractor):
         raise TypeError("'fe' must be a ImageExtractor from fe.image")
 
-    features_list = []
-    labels_list = []
     n = len(ids) if ids is not None else len(dataset)
     dl = DataLoader(dataset, batch_size=IMG_FE_BATCH_SIZE, sampler=ids)
 
+    features_list = []
     pbar = tqdm(total=n, desc="Extracting image features", disable=not verbose)
     for i, batch in enumerate(dl, 0):
         features_list.append(fe(batch["image"]))
-        labels_list.append(batch["target"])
-        pbar.update(len(batch["target"]))
+        pbar.update(len(batch["image"]))
     pbar.close()
-
     features = np.concatenate(features_list, axis=0)
-    labels = np.concatenate(labels_list, axis=0)
+
+    labels = None
+    if dataset.targets is not None:
+        labels_list = [batch["target"] for batch in dl]
+        labels = np.concatenate(labels_list, axis=0)
+
     return features, labels
 
 def _check_output(out, tensor=False):
